@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket
 import cv2
 from ultralytics import YOLO
 import asyncio
+import socketio  # SocketIO client para conectarse al servidor Flask
 
 # Inicializar la aplicación FastAPI
 app = FastAPI()
@@ -10,13 +11,22 @@ app = FastAPI()
 model = YOLO("object-detection_v1.pt")
 
 # Captura de video (cambiar el source si es necesario: 0 para webcam, archivo de video o dirección RTSP)
-video_source = 0  # Aquí estás usando "source=2"
+video_source = 0
 cap = cv2.VideoCapture(video_source)
+
+# Configuración de cliente SocketIO para conectarse al servidor Flask
+sio = socketio.Client()
+flask_server_url = "http://127.0.0.1:5000"  # URL del servidor Flask
+try:
+    sio.connect(flask_server_url)
+    print("Conectado al servidor Flask vía SocketIO")
+except Exception as e:
+    print(f"Error al conectar con el servidor Flask: {e}")
 
 @app.websocket("/ws/video")
 async def video_stream(websocket: WebSocket):
     """
-    Transmite video en tiempo real con detecciones YOLO.
+    Transmite video en tiempo real con detecciones YOLO a través de WebSocket y SocketIO.
     """
     await websocket.accept()
     try:
@@ -32,9 +42,13 @@ async def video_stream(websocket: WebSocket):
 
             # Codificar el frame procesado a formato JPEG
             _, buffer = cv2.imencode(".jpg", annotated_frame)
+            frame_bytes = buffer.tobytes()
 
-            # Enviar el frame a través del WebSocket
-            await websocket.send_bytes(buffer.tobytes())
+            # Enviar el frame al WebSocket del cliente FastAPI
+            await websocket.send_bytes(frame_bytes)
+
+            # Enviar el mismo frame al servidor Flask usando SocketIO
+            sio.emit("video_frame", {"frame": frame_bytes})
 
             # Introducir un pequeño retraso para evitar sobrecarga
             await asyncio.sleep(0.03)
@@ -43,3 +57,4 @@ async def video_stream(websocket: WebSocket):
     finally:
         cap.release()
         await websocket.close()
+        sio.disconnect()
