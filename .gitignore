@@ -1,0 +1,17 @@
+# Ignorar todo por defecto
+*
+
+# Excepciones: incluir Back-end y Front-end
+!Back-end/
+!Front-end/
+
+# Incluir todo dentro de Back-end y Front-end, excepto __pycache__
+!Back-end/**
+!Front-end/**
+
+# Ignorar cualquier carpeta __pycache__ dentro de Back-end y Front-end
+Back-end/**/__pycache__/
+Front-end/**/__pycache__/
+
+# No ignorar el propio .gitignore
+!/.gitignore
