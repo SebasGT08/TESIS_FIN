@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO & Pose Detection Streams</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>YOLO & Pose Detection Streams</h1>
+    <p>Streams en tiempo real procesados con YOLO y detección de poses.</p>
+    <div class="canvas-container">
+        <!-- Canvas para detección de poses -->
+        <div>
+            <h2>Detección de Poses</h2>
+            <canvas id="poseCanvas" style="max-width: 100%;"></canvas>
+        </div>
+        <!-- Canvas para detección de objetos -->
+        <div>
+            <h2>Detección de Objetos</h2>
+            <canvas id="objectCanvas" style="max-width: 100%;"></canvas>
+        </div>
+        <!-- Canvas para detección de objetos -->
+        <div>
+            <h2>Detección de Rostros</h2>
+            <canvas id="faceCanvas" style="max-width: 100%;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Función para inicializar un WebSocket y manejar el stream
+        function initWebSocket(canvasId, websocketUrl) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext("2d");
+            const socket = new WebSocket(websocketUrl);
+            const image = new Image();
+
+            socket.binaryType = "arraybuffer"; // Especificar que los datos son binarios
+            socket.onmessage = (event) => {
+                // Crear un Blob a partir de los datos binarios recibidos
+                const blob = new Blob([event.data], { type: "image/jpeg" });
+
+                // Convertir el Blob en una URL temporal
+                const url = URL.createObjectURL(blob);
+
+                // Cargar la imagen en el canvas
+                image.onload = () => {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    ctx.drawImage(image, 0, 0);
+                    URL.revokeObjectURL(url); // Liberar memoria de la URL
+                };
+                image.src = url;
+            };
+
+            // Manejar errores
+            socket.onerror = (error) => {
+                console.error(`Error en el WebSocket (${websocketUrl}):`, error);
+            };
+
+            // Manejar cierre de conexión
+            socket.onclose = () => {
+                console.log(`Conexión WebSocket cerrada (${websocketUrl})`);
+            };
+        }
+
+        // Inicializar WebSockets para ambos streams
+        initWebSocket("poseCanvas", "ws://localhost:8000/ws/poses"); // WebSocket para poses
+        initWebSocket("objectCanvas", "ws://localhost:8000/ws/objects"); // WebSocket para objetos
+        initWebSocket("faceCanvas", "ws://localhost:8000/ws/faces");
+    </script>
+</body>
+</html>

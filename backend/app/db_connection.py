@@ -17,7 +17,7 @@ def get_db_connection():
 def ensure_table_exists(connection):
     try:
         cursor = connection.cursor()
-        # Verificar si la tabla existe
+        # Crear tabla si no existe
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS personas (
                 id INT AUTO_INCREMENT PRIMARY KEY,
