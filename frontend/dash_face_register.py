@@ -5,6 +5,101 @@ import socketio
 import requests
 import plotly.graph_objects as go
 
+# --------------------------------------------------------------------
+# HTML incrustado para las cámaras (tu parte de YOLO & Pose Detection)
+# --------------------------------------------------------------------
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO & Pose Detection Streams</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas-container">
+        <!-- Canvas para detección de poses -->
+        <div>
+            <h2>Detección de Poses</h2>
+            <canvas id="poseCanvas" style="max-width: 100%;"></canvas>
+        </div>
+        <!-- Canvas para detección de objetos -->
+        <div>
+            <h2>Detección de Objetos</h2>
+            <canvas id="objectCanvas" style="max-width: 100%;"></canvas>
+        </div>
+        <!-- Canvas para detección de rostros -->
+        <div>
+            <h2>Detección de Rostros</h2>
+            <canvas id="faceCanvas" style="max-width: 100%;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Función para inicializar un WebSocket y manejar el stream
+        function initWebSocket(canvasId, websocketUrl) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext("2d");
+            const socket = new WebSocket(websocketUrl);
+            const image = new Image();
+
+            socket.binaryType = "arraybuffer"; // Especificar que los datos son binarios
+            socket.onmessage = (event) => {
+                // Crear un Blob a partir de los datos binarios recibidos
+                const blob = new Blob([event.data], { type: "image/jpeg" });
+
+                // Convertir el Blob en una URL temporal
+                const url = URL.createObjectURL(blob);
+
+                // Cargar la imagen en el canvas
+                image.onload = () => {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    ctx.drawImage(image, 0, 0);
+                    URL.revokeObjectURL(url); // Liberar memoria de la URL
+                };
+                image.src = url;
+            };
+
+            // Manejar errores
+            socket.onerror = (error) => {
+                console.error(`Error en el WebSocket (${websocketUrl}):`, error);
+            };
+
+            // Manejar cierre de conexión
+            socket.onclose = () => {
+                console.log(`Conexión WebSocket cerrada (${websocketUrl})`);
+            };
+        }
+
+        // Inicializar WebSockets (ajusta las URLs al puerto/back que uses)
+        initWebSocket("poseCanvas", "ws://localhost:8000/ws/poses");
+        initWebSocket("objectCanvas", "ws://localhost:8000/ws/objects");
+        initWebSocket("faceCanvas", "ws://localhost:8000/ws/faces");
+    </script>
+</body>
+</html>
+"""
+
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], suppress_callback_exceptions=True)
 app.title = 'Registro Facial'
 
@@ -281,124 +376,16 @@ def render_tab_content(active_tab):
         )
 
     elif active_tab == "camaras":
-        # Dividimos las cámaras en 4 secciones (2 filas x 2 columnas)
+        # Reemplazamos la vista de 4 cámaras por el Iframe con tu HTML incrustado
         return html.Div(
             style={'padding': '20px'},
             children=[
                 html.H4("Stream de Cámaras", style={'color': 'white', 'textAlign': 'center', 'fontSize': '24px'}),
-                
-                # Fila 1: 2 cámaras
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            html.Div(
-                                [
-                                    html.H5("Cámara 1 - Recon. Facial", style={'color': 'white', 'textAlign': 'center'}),
-                                    html.Img(
-                                        id="video-feed-1",
-                                        style={
-                                            'width': '100%',
-                                            'height': '300px',
-                                            'border': '2px solid white'
-                                        }
-                                    ),
-                                ],
-                                style={
-                                    'display': 'flex',
-                                    'flexDirection': 'column',
-                                    'alignItems': 'center',
-                                    'justifyContent': 'center',
-                                    'backgroundColor': '#2C2C2C',
-                                    'borderRadius': '10px',
-                                    'overflow': 'hidden',
-                                    'marginBottom': '20px'
-                                }
-                            ),
-                            width=6
-                        ),
-                        dbc.Col(
-                            html.Div(
-                                [
-                                    html.H5("Cámara 2 - YOLO (Objetos)", style={'color': 'white', 'textAlign': 'center'}),
-                                    html.Canvas(
-                                        id="videoCanvas",
-                                        style={
-                                            'width': '100%',
-                                            'height': '300px',
-                                            'border': '2px solid white'
-                                        }
-                                    ),
-                                ],
-                                style={
-                                    'display': 'flex',
-                                    'flexDirection': 'column',
-                                    'alignItems': 'center',
-                                    'justifyContent': 'center',
-                                    'backgroundColor': '#2C2C2C',
-                                    'borderRadius': '10px',
-                                    'overflow': 'hidden',
-                                    'marginBottom': '20px'
-                                }
-                            ),
-                            width=6
-                        ),
-                    ]
-                ),
 
-                # Fila 2: 2 cámaras
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            html.Div(
-                                [
-                                    html.H5("Cámara 3 - Recon. de Poses", style={'color': 'white', 'textAlign': 'center'}),
-                                    html.Img(
-                                        id="video-feed-3",
-                                        style={
-                                            'width': '100%',
-                                            'height': '300px',
-                                            'border': '2px solid white'
-                                        }
-                                    ),
-                                ],
-                                style={
-                                    'display': 'flex',
-                                    'flexDirection': 'column',
-                                    'alignItems': 'center',
-                                    'justifyContent': 'center',
-                                    'backgroundColor': '#2C2C2C',
-                                    'borderRadius': '10px',
-                                    'overflow': 'hidden'
-                                }
-                            ),
-                            width=6
-                        ),
-                        dbc.Col(
-                            html.Div(
-                                [
-                                    html.H5("Cámara 4 - Adicional", style={'color': 'white', 'textAlign': 'center'}),
-                                    html.Img(
-                                        id="video-feed-4",
-                                        style={
-                                            'width': '100%',
-                                            'height': '300px',
-                                            'border': '2px solid white'
-                                        }
-                                    ),
-                                ],
-                                style={
-                                    'display': 'flex',
-                                    'flexDirection': 'column',
-                                    'alignItems': 'center',
-                                    'justifyContent': 'center',
-                                    'backgroundColor': '#2C2C2C',
-                                    'borderRadius': '10px',
-                                    'overflow': 'hidden'
-                                }
-                            ),
-                            width=6
-                        ),
-                    ]
+                # Iframe con el HTML incrustado
+                html.Iframe(
+                    srcDoc=html_content,
+                    style={"width": "100%", "height": "70vh", "border": "none"},
                 ),
 
                 # Botón para abrir el modal de actividad
@@ -414,12 +401,11 @@ def render_tab_content(active_tab):
                     [
                         dbc.ModalHeader(
                             dbc.ModalTitle("Registro de Actividad", style={'fontSize': '24px'}),
-                            close_button=True  # la "X" para cerrar
+                            close_button=True
                         ),
                         dbc.ModalBody(
                             dbc.Row(
                                 [
-                                    # Columna izquierda: logs de detecciones
                                     dbc.Col(
                                         html.Div(
                                             id="modal-activity-logs",
@@ -434,13 +420,10 @@ def render_tab_content(active_tab):
                                         ),
                                         width=6
                                     ),
-                                    # Columna derecha: gráfica de conteo
                                     dbc.Col(
                                         dcc.Graph(
                                             id="modal-activity-graph",
-                                            style={
-                                                'height': '400px'
-                                            }
+                                            style={'height': '400px'}
                                         ),
                                         width=6
                                     )
@@ -449,18 +432,19 @@ def render_tab_content(active_tab):
                         ),
                     ],
                     id="activity-modal",
-                    is_open=False,  # Cerrado por defecto
+                    is_open=False,
                     size="xl",
                     backdrop=True,
                     scrollable=True
                 ),
             ]
         )
+
     return "Seleccione una pestaña para ver el contenido."
 
 
 # --------------------------------------------------------------------------------------
-# Callback para mostrar el frame de las cámaras (4 salidas)
+# Callback para mostrar el frame de las cámaras (si aún deseas usarlo en otro lugar)
 # --------------------------------------------------------------------------------------
 @app.callback(
     [Output("video-feed-1", "src"),
@@ -470,14 +454,14 @@ def render_tab_content(active_tab):
     [Input("interval", "n_intervals"), Input("tabs", "active_tab")]
 )
 def update_frame(_, active_tab):
+    # Como ahora usamos un Iframe para la sección “cámaras”, podríamos no usar estas 4 salidas.
+    # Deja el callback si quieres, o bórralo si ya no es necesario.
     if active_tab != "camaras":
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     global latest_frame
     if latest_frame:
         src_value = f"data:image/jpeg;base64,{latest_frame}"
-        # Ejemplo: si tienes solo 3 cámaras, la 4ta podría mostrar la misma imagen o quedar en dash.no_update
-        # Para la demo, mostramos la misma imagen en la 4ta
         return src_value, None, src_value, src_value
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -522,11 +506,9 @@ def display_images(content, filename):
     [State('upload-image', 'contents'), State('input-name', 'value'), State('tabs', 'active_tab')]
 )
 def enviar_datos_backend(n_clicks, image_content, name, active_tab):
-    # Solo actuamos si se hizo clic en "Guardar" y la pestaña activa es "registros"
     if active_tab != "registros" or not n_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-    # Intentamos registrar
     if image_content and name:
         image_data = image_content.split(",")[1]
         payload = {
@@ -536,12 +518,9 @@ def enviar_datos_backend(n_clicks, image_content, name, active_tab):
         try:
             response = requests.post('http://127.0.0.1:5000/register', json=payload)
             if response.status_code == 200:
-                # Registro exitoso
                 alert = dbc.Alert("Registro exitoso.", color="success", duration=3000)
-                # Limpiamos los campos
                 new_name = ""
                 new_image = None
-                # Construimos la tabla actualizada
                 new_table = build_records_table()
                 return alert, new_name, new_image, new_table
             else:
@@ -565,7 +544,6 @@ def enviar_datos_backend(n_clicks, image_content, name, active_tab):
     [State("activity-modal", "is_open")]
 )
 def toggle_activity_modal(n_clicks_open, is_open):
-    # Clic en "Ver Actividad" alterna el estado del modal
     if n_clicks_open:
         return not is_open
     return is_open
@@ -581,17 +559,12 @@ def toggle_activity_modal(n_clicks_open, is_open):
     State("tabs", "active_tab")
 )
 def update_activity_logs(_, active_tab):
-    """
-    Se actualizarán los logs de detecciones y la gráfica
-    periódicamente si estamos en la pestaña "cámaras".
-    """
     if active_tab != "camaras":
         return dash.no_update, dash.no_update
 
     global activity_logs_facial, activity_logs_objetos, activity_logs_poses
     global detection_count_facial, detection_count_objetos, detection_count_poses
 
-    # Unificamos los últimos 50 logs en una sola lista (ordenados por tipo).
     logs_combined = []
 
     if activity_logs_facial:
@@ -608,7 +581,6 @@ def update_activity_logs(_, active_tab):
         logs_combined.append(html.Div("Detecciones de Poses:", style={'fontWeight': 'bold'}))
         logs_combined += [html.Div(log) for log in activity_logs_poses[-50:]]
 
-    # Gráfica de barras con conteo total
     x_values = ["Facial", "Objetos", "Poses"]
     y_values = [detection_count_facial, detection_count_objetos, detection_count_poses]
 
