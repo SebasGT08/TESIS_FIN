@@ -1,7 +1,7 @@
 import dash
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
-import socketio
+#import socketio
 import requests
 import plotly.graph_objects as go
 
@@ -103,7 +103,7 @@ html_content = """
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], suppress_callback_exceptions=True)
 app.title = 'Registro Facial'
 
-sio = socketio.Client()
+#sio = socketio.Client()
 
 latest_frame = None
 activity_logs_facial = []
@@ -116,26 +116,26 @@ detection_count_poses = 0
 # --------------------------------------------------------------------------------------
 # Evento de Socket.IO para simular recepción de frames y contadores de actividad
 # --------------------------------------------------------------------------------------
-@sio.on('video_frame')
-def handle_video_frame(data):
-    global latest_frame
-    global detection_count_facial, detection_count_objetos, detection_count_poses
-    global activity_logs_facial, activity_logs_objetos, activity_logs_poses
+# @sio.on('video_frame')
+# def handle_video_frame(data):
+#     global latest_frame
+#     global detection_count_facial, detection_count_objetos, detection_count_poses
+#     global activity_logs_facial, activity_logs_objetos, activity_logs_poses
 
-    # Recibimos el frame (base64) y actualizamos contadores
-    latest_frame = data['frame']
+#     # Recibimos el frame (base64) y actualizamos contadores
+#     latest_frame = data['frame']
 
-    # Simulación de detecciones
-    detection_count_facial += 1
-    detection_count_objetos += 1
-    detection_count_poses += 1
+#     # Simulación de detecciones
+#     detection_count_facial += 1
+#     detection_count_objetos += 1
+#     detection_count_poses += 1
 
-    activity_logs_facial.append(f"Detección Facial #{detection_count_facial}")
-    activity_logs_objetos.append(f"Detección de Objetos #{detection_count_objetos}")
-    activity_logs_poses.append(f"Detección de Poses #{detection_count_poses}")
+#     activity_logs_facial.append(f"Detección Facial #{detection_count_facial}")
+#     activity_logs_objetos.append(f"Detección de Objetos #{detection_count_objetos}")
+#     activity_logs_poses.append(f"Detección de Poses #{detection_count_poses}")
 
 # Conexión Socket.IO (ajusta la URL a tu backend real)
-sio.connect('http://127.0.0.1:5000')
+#sio.connect('http://127.0.0.1:5000')
 
 # --------------------------------------------------------------------------------------
 # Función auxiliar para construir la tabla de registros
