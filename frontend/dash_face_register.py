@@ -6,100 +6,336 @@ import requests
 import plotly.graph_objects as go
 
 # --------------------------------------------------------------------
-# HTML incrustado para las cámaras (tu parte de YOLO & Pose Detection)
+# HTML incrustado para las cámaras con sidebar, miniaturas, y lógica
 # --------------------------------------------------------------------
 html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YOLO & Pose Detection Streams</title>
+    <title>YOLO & Pose Detection Streams - Vista DVR</title>
     <style>
         body {
+            margin: 0;
+            padding: 0;
+            background-color: #1D1F21;
+            font-family: Arial, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+        }
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background-color: #2E2E2E;
             display: flex;
             flex-direction: column;
             align-items: center;
-            font-family: Arial, sans-serif;
+            padding: 15px;
         }
-        h1 {
+        .sidebar h2 {
             margin-bottom: 20px;
         }
-        .canvas-container {
+        .controls {
+            margin-bottom: 20px;
             display: flex;
+            gap: 10px;
+        }
+        .controls button {
+            background-color: #007bff;
+            border: none;
+            color: white;
+            font-size: 16px;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .sidebar button#viewAllBtn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            background-color: #28a745; /* Verde */
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .sidebar button#viewAllBtn:hover {
+            background-color: #218838;
+        }
+        .camera-list {
+            width: 100%;
+        }
+        .camera-item {
+            background-color: #3A3A3A;
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            text-align: center;
+            border-radius: 5px;
+        }
+        .camera-item:hover {
+            background-color: #4A4A4A;
+        }
+        .mini-thumb {
+            display: block;
+            margin: 0 auto 5px auto; 
+            border: 1px solid #000;
+            width: 120px; 
+            height: 90px; 
+        }
+
+        /* Main view */
+        .main-view {
+            flex: 1;
+            background-color: #1D1F21;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap; /* Para mantenerlas en una fila */
             justify-content: center;
-            gap: 20px;
+            align-items: center;
+            position: relative;
+        }
+        /* En modo "Ver Todo" */
+        .multi-camera .camera-view {
+            width: 32%;
+            margin: 5px;
+            box-sizing: border-box;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        /* En modo "una sola cámara" */
+        .single-camera .camera-view {
+            width: 95%;
+            height: 90%;
+            margin: 0 auto;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .camera-title {
+            background-color: #333;
+            width: 100%;
+            text-align: center;
+            padding: 5px;
+            font-weight: bold;
         }
         canvas {
-            border: 1px solid black;
+            max-width: 100%;
+            max-height: calc(100% - 30px);
         }
+        /* Ocultar cámaras */
+        .hidden {
+            display: none !important;
+        }
+
     </style>
 </head>
 <body>
-    <div class="canvas-container">
-        <!-- Canvas para detección de poses -->
-        <div>
-            <h2>Detección de Poses</h2>
-            <canvas id="poseCanvas" style="max-width: 100%;"></canvas>
+    <div class="sidebar">
+        <h2>Lista de Cámaras</h2>
+
+        <!-- Controles con flechas -->
+        <div class="controls">
+            <button id="prevCameraBtn">&#8592;</button>
+            <button id="nextCameraBtn">&#8594;</button>
         </div>
-        <!-- Canvas para detección de objetos -->
-        <div>
-            <h2>Detección de Objetos</h2>
-            <canvas id="objectCanvas" style="max-width: 100%;"></canvas>
+
+        <!-- Botón para ver todas las cámaras -->
+        <button id="viewAllBtn">Ver Todo</button>
+
+        <div class="camera-list">
+            <div class="camera-item" onclick="showSingleCamera('poseContainer')">
+                <!-- Miniatura de la cámara de Poses -->
+                <canvas id="poseThumbCanvas" class="mini-thumb"></canvas>
+                <span>Cámara Poses</span>
+            </div>
+            <div class="camera-item" onclick="showSingleCamera('objectContainer')">
+                <!-- Miniatura de la cámara de Objetos -->
+                <canvas id="objectThumbCanvas" class="mini-thumb"></canvas>
+                <span>Cámara Objetos</span>
+            </div>
+            <div class="camera-item" onclick="showSingleCamera('faceContainer')">
+                <!-- Miniatura de la cámara de Rostros -->
+                <canvas id="faceThumbCanvas" class="mini-thumb"></canvas>
+                <span>Cámara Rostros</span>
+            </div>
         </div>
-        <!-- Canvas para detección de rostros -->
-        <div>
-            <h2>Detección de Rostros</h2>
-            <canvas id="faceCanvas" style="max-width: 100%;"></canvas>
+    </div>
+
+    <div class="main-view multi-camera" id="mainView">
+        <!-- Cámara de Poses -->
+        <div class="camera-view" id="poseContainer">
+            <div class="camera-title">Detección de Poses</div>
+            <canvas id="poseCanvas"></canvas>
+        </div>
+        <!-- Cámara de Objetos -->
+        <div class="camera-view" id="objectContainer">
+            <div class="camera-title">Detección de Objetos</div>
+            <canvas id="objectCanvas"></canvas>
+        </div>
+        <!-- Cámara de Rostros -->
+        <div class="camera-view" id="faceContainer">
+            <div class="camera-title">Detección de Rostros</div>
+            <canvas id="faceCanvas"></canvas>
         </div>
     </div>
 
     <script>
-        // Función para inicializar un WebSocket y manejar el stream
+        // ----- WebSocket Initialization for main view -----
         function initWebSocket(canvasId, websocketUrl) {
             const canvas = document.getElementById(canvasId);
             const ctx = canvas.getContext("2d");
             const socket = new WebSocket(websocketUrl);
             const image = new Image();
 
-            socket.binaryType = "arraybuffer"; // Especificar que los datos son binarios
+            socket.binaryType = "arraybuffer";
             socket.onmessage = (event) => {
-                // Crear un Blob a partir de los datos binarios recibidos
                 const blob = new Blob([event.data], { type: "image/jpeg" });
-
-                // Convertir el Blob en una URL temporal
                 const url = URL.createObjectURL(blob);
-
-                // Cargar la imagen en el canvas
                 image.onload = () => {
                     canvas.width = image.width;
                     canvas.height = image.height;
                     ctx.drawImage(image, 0, 0);
-                    URL.revokeObjectURL(url); // Liberar memoria de la URL
+                    URL.revokeObjectURL(url);
                 };
                 image.src = url;
             };
-
-            // Manejar errores
             socket.onerror = (error) => {
                 console.error(`Error en el WebSocket (${websocketUrl}):`, error);
             };
-
-            // Manejar cierre de conexión
             socket.onclose = () => {
                 console.log(`Conexión WebSocket cerrada (${websocketUrl})`);
             };
         }
 
-        // Inicializar WebSockets (ajusta las URLs al puerto/back que uses)
+        // ----- WebSocket Initialization for thumbnails -----
+        function initWebSocketThumb(canvasId, websocketUrl) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext("2d");
+            const socket = new WebSocket(websocketUrl);
+            const image = new Image();
+
+            socket.binaryType = "arraybuffer";
+            socket.onmessage = (event) => {
+                const blob = new Blob([event.data], { type: "image/jpeg" });
+                const url = URL.createObjectURL(blob);
+                image.onload = () => {
+                    // Ajustamos el tamaño del lienzo al tamaño de la miniatura
+                    canvas.width = 120; 
+                    canvas.height = 90; 
+                    // Dibuja la imagen ajustada a la miniatura
+                    ctx.drawImage(image, 0, 0, 120, 90);
+                    URL.revokeObjectURL(url);
+                };
+                image.src = url;
+            };
+            socket.onerror = (error) => {
+                console.error(`Error en WebSocket THUMB (${websocketUrl}):`, error);
+            };
+            socket.onclose = () => {
+                console.log(`Conexión WebSocket cerrada (THUMB) (${websocketUrl})`);
+            };
+        }
+
+        // Inicializar WebSockets para vistas principales
         initWebSocket("poseCanvas", "ws://localhost:8000/ws/poses");
         initWebSocket("objectCanvas", "ws://localhost:8000/ws/objects");
         initWebSocket("faceCanvas", "ws://localhost:8000/ws/faces");
+
+        // Inicializar WebSockets para miniaturas
+        initWebSocketThumb("poseThumbCanvas", "ws://localhost:8000/ws/poses");
+        initWebSocketThumb("objectThumbCanvas", "ws://localhost:8000/ws/objects");
+        initWebSocketThumb("faceThumbCanvas", "ws://localhost:8000/ws/faces");
+
+        // ----- IDs de cámaras principales -----
+        const cameras = ["poseContainer", "objectContainer", "faceContainer"];
+        let currentIndex = 0;
+
+        const mainView = document.getElementById("mainView");
+
+        // Mostrar todas las cámaras en modo horizontal
+        function showAllCameras() {
+            mainView.classList.add("multi-camera");
+            mainView.classList.remove("single-camera");
+
+            // Mostramos todas las cámaras
+            cameras.forEach((camId) => {
+                document.getElementById(camId).classList.remove("hidden");
+            });
+        }
+
+        // Mostrar cámara única en fullscreen
+        function showSingleCamera(containerId) {
+            mainView.classList.remove("multi-camera");
+            mainView.classList.add("single-camera");
+
+            // Ocultamos todas menos la seleccionada
+            cameras.forEach((camId) => {
+                document.getElementById(camId).classList.add("hidden");
+            });
+            document.getElementById(containerId).classList.remove("hidden");
+
+            // Actualizamos el currentIndex
+            currentIndex = cameras.indexOf(containerId);
+        }
+
+        // Botón "Ver Todo"
+        document.getElementById("viewAllBtn").addEventListener("click", () => {
+            showAllCameras();
+        });
+
+        // Botones de navegación (flechas)
+        document.getElementById("prevCameraBtn").addEventListener("click", () => {
+            // Si estamos en single-camera, vamos a la anterior
+            if (mainView.classList.contains("single-camera")) {
+                currentIndex = (currentIndex - 1 + cameras.length) % cameras.length;
+                showSingleCamera(cameras[currentIndex]);
+            }
+        });
+
+        document.getElementById("nextCameraBtn").addEventListener("click", () => {
+            // Si estamos en single-camera, vamos a la siguiente
+            if (mainView.classList.contains("single-camera")) {
+                currentIndex = (currentIndex + 1) % cameras.length;
+                showSingleCamera(cameras[currentIndex]);
+            }
+        });
+
+        // Tecla flecha derecha e izquierda
+        document.addEventListener("keydown", (event) => {
+            // Para que funcione, debes hacer clic dentro del iframe y luego presionar la tecla
+            if (mainView.classList.contains("single-camera")) {
+                if (event.key === "ArrowRight") {
+                    // siguiente
+                    currentIndex = (currentIndex + 1) % cameras.length;
+                    showSingleCamera(cameras[currentIndex]);
+                }
+                else if (event.key === "ArrowLeft") {
+                    // anterior
+                    currentIndex = (currentIndex - 1 + cameras.length) % cameras.length;
+                    showSingleCamera(cameras[currentIndex]);
+                }
+            }
+        });
     </script>
 </body>
 </html>
 """
 
+# ----------------------------------------------------
+# Configuración inicial de la app Dash
+# ----------------------------------------------------
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], suppress_callback_exceptions=True)
 app.title = 'Registro Facial'
 
@@ -113,29 +349,27 @@ detection_count_facial = 0
 detection_count_objetos = 0
 detection_count_poses = 0
 
+
 # --------------------------------------------------------------------------------------
-# Evento de Socket.IO para simular recepción de frames y contadores de actividad
+# (Opcional) Evento de Socket.IO, si lo usas con tu backend (comentado por defecto)
 # --------------------------------------------------------------------------------------
 # @sio.on('video_frame')
 # def handle_video_frame(data):
 #     global latest_frame
 #     global detection_count_facial, detection_count_objetos, detection_count_poses
 #     global activity_logs_facial, activity_logs_objetos, activity_logs_poses
-
-#     # Recibimos el frame (base64) y actualizamos contadores
+#
 #     latest_frame = data['frame']
-
-#     # Simulación de detecciones
 #     detection_count_facial += 1
 #     detection_count_objetos += 1
 #     detection_count_poses += 1
-
+#
 #     activity_logs_facial.append(f"Detección Facial #{detection_count_facial}")
 #     activity_logs_objetos.append(f"Detección de Objetos #{detection_count_objetos}")
 #     activity_logs_poses.append(f"Detección de Poses #{detection_count_poses}")
+#
+# sio.connect('http://127.0.0.1:5000')
 
-# Conexión Socket.IO (ajusta la URL a tu backend real)
-#sio.connect('http://127.0.0.1:5000')
 
 # --------------------------------------------------------------------------------------
 # Función auxiliar para construir la tabla de registros
@@ -200,7 +434,7 @@ def build_records_table():
 
 
 # --------------------------------------------------------------------------------------
-# Layout principal
+# Layout principal de la app
 # --------------------------------------------------------------------------------------
 app.layout = dbc.Container(
     [
@@ -376,11 +610,11 @@ def render_tab_content(active_tab):
         )
 
     elif active_tab == "camaras":
-        # Reemplazamos la vista de 4 cámaras por el Iframe con tu HTML incrustado
+        # Nueva interfaz estilo DVR en el Iframe
         return html.Div(
             style={'padding': '20px'},
             children=[
-                html.H4("Stream de Cámaras", style={'color': 'white', 'textAlign': 'center', 'fontSize': '24px'}),
+                html.H4("Stream de Cámaras - DVR View", style={'color': 'white', 'textAlign': 'center', 'fontSize': '24px'}),
 
                 # Iframe con el HTML incrustado
                 html.Iframe(
@@ -444,7 +678,7 @@ def render_tab_content(active_tab):
 
 
 # --------------------------------------------------------------------------------------
-# Callback para mostrar el frame de las cámaras (si aún deseas usarlo en otro lugar)
+# Callback para (opcional) actualizar frames si usaras 4 salidas (no se usa ahora)
 # --------------------------------------------------------------------------------------
 @app.callback(
     [Output("video-feed-1", "src"),
@@ -454,8 +688,7 @@ def render_tab_content(active_tab):
     [Input("interval", "n_intervals"), Input("tabs", "active_tab")]
 )
 def update_frame(_, active_tab):
-    # Como ahora usamos un Iframe para la sección “cámaras”, podríamos no usar estas 4 salidas.
-    # Deja el callback si quieres, o bórralo si ya no es necesario.
+    # Como ahora usamos un Iframe para la sección “cámaras”, podríamos no usar esto.
     if active_tab != "camaras":
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
