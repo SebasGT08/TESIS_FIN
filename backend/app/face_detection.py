@@ -54,6 +54,7 @@ def procesar_rostros(frame):
     # Realizar detección de rostros con YOLO
     results = model.predict(source=frame, device=device, verbose=False)
     detections = results[0].boxes
+    eventos = []
 
     if detections is not None and len(detections) > 0:
         for box in detections:
@@ -80,6 +81,8 @@ def procesar_rostros(frame):
                         best_match_index = np.argmin(face_distances)
                         if matches[best_match_index]:
                             name = known_names[best_match_index]
+                        if not any(matches):  # Rostro no reconocido
+                            eventos.append({"etiqueta": "Desconocido", "confianza": 1.0})
 
                 # Dibujar el nombre y la caja alrededor del rostro
                 cv2.putText(frame, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
@@ -98,4 +101,4 @@ def procesar_rostros(frame):
                         y = int(landmark.y * (y2 - y1)) + y1
                         cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
 
-    return frame
+    return frame, eventos

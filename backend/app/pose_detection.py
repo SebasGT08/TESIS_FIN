@@ -49,6 +49,7 @@ def detectar_actividad(keypoints):
 def procesar_frame(frame):
     results = model.predict(frame, device=device, verbose=False)
     annotated_frame = results[0].plot()
+    eventos = []
 
     for result in results:
         if result.keypoints is not None:
@@ -68,5 +69,9 @@ def procesar_frame(frame):
 
                     cv2.putText(annotated_frame, actividad, (centro_x, centro_y),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    
+                    if actividad == "Pelear":  # Evento crítico
+                        eventos.append({"etiqueta": "Pelear", "confianza": 1.0})
+                    
 
-    return annotated_frame
+    return annotated_frame, eventos

@@ -18,4 +18,14 @@ def procesar_objetos(frame):
     """
     results = model.predict(frame, device=device, verbose=False)
     annotated_frame = results[0].plot()  # Renderiza las detecciones en el frame
-    return annotated_frame
+    
+    eventos = []
+
+    for detection in results[0].boxes:
+        clase = detection.cls
+        confianza = detection.conf
+        etiqueta = model.names[int(clase)]
+        if etiqueta in ["pistol", "knife"]:  # Clases relevantes
+            eventos.append({"etiqueta": etiqueta, "confianza": confianza.item()})
+
+    return annotated_frame, eventos
