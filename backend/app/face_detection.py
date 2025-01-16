@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import cv2
 import torch
-import mediapipe as mp
+# import mediapipe as mp
 import numpy as np
 import os
 import face_recognition
@@ -15,14 +15,14 @@ model.to(device)
 model.conf = 0.25  # Ajusta el umbral de confianza
 
 # Configuración de MediaPipe Face Mesh
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(
-    static_image_mode=False,
-    max_num_faces=5,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
+# mp_face_mesh = mp.solutions.face_mesh
+# face_mesh = mp_face_mesh.FaceMesh(
+#     static_image_mode=False,
+#     max_num_faces=5,
+#     refine_landmarks=True,
+#     min_detection_confidence=0.5,
+#     min_tracking_confidence=0.5
+# )
 
 # Directorio donde están los encodings registrados
 ENCODINGS_FOLDER = os.path.abspath('registered_encodings')
@@ -93,12 +93,12 @@ def procesar_rostros(frame):
                 print(f"Error en reconocimiento facial: {e}")
 
             # Procesar puntos clave faciales con MediaPipe
-            face_results = face_mesh.process(face_rgb)
-            if face_results.multi_face_landmarks:
-                for facial_landmarks in face_results.multi_face_landmarks:
-                    for landmark in facial_landmarks.landmark:
-                        x = int(landmark.x * (x2 - x1)) + x1
-                        y = int(landmark.y * (y2 - y1)) + y1
-                        cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
+            # face_results = face_mesh.process(face_rgb)
+            # if face_results.multi_face_landmarks:
+            #     for facial_landmarks in face_results.multi_face_landmarks:
+            #         for landmark in facial_landmarks.landmark:
+            #             x = int(landmark.x * (x2 - x1)) + x1
+            #             y = int(landmark.y * (y2 - y1)) + y1
+            #             cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
 
     return frame, eventos
