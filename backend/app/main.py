@@ -20,3 +20,4 @@ if __name__ == "__main__":
     # Ejecutar Flask y FastAPI en hilos separados
     threading.Thread(target=run_flask, daemon=True).start()
     run_fastapi()  # Bloqueante: FastAPI se ejecuta en el hilo principal
+

@@ -631,46 +631,45 @@ def render_tab_content(active_tab):
                 ),
 
                 # Modal con logs y gráfica (en 2 columnas)
-                dbc.Modal(
-                    [
-                        dbc.ModalHeader(
-                            dbc.ModalTitle("Registro de Actividad", style={'fontSize': '24px'}),
-                            close_button=True
+               dbc.Modal(
+    [
+        dbc.ModalHeader(
+            dbc.ModalTitle("Registro de Actividad", style={'fontSize': '24px'}),
+            close_button=True
+        ),
+        dbc.ModalBody(
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(
+                            id="modal-activity-logs",
+                            # OJO: No pongas maxHeight muy bajo aquí, o tendrás scroll doble
+                            style={
+                                'backgroundColor': '#3A3A3A',
+                                'padding': '10px',
+                                'borderRadius': '5px'
+                            }
                         ),
-                        dbc.ModalBody(
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.Div(
-                                            id="modal-activity-logs",
-                                            style={
-                                                'color': 'white',
-                                                'backgroundColor': '#3A3A3A',
-                                                'padding': '10px',
-                                                'borderRadius': '5px',
-                                                'maxHeight': '400px',
-                                                'overflowY': 'auto'
-                                            }
-                                        ),
-                                        width=6
-                                    ),
-                                    dbc.Col(
-                                        dcc.Graph(
-                                            id="modal-activity-graph",
-                                            style={'height': '400px'}
-                                        ),
-                                        width=6
-                                    )
-                                ]
-                            )
+                        width=6
+                    ),
+                    dbc.Col(
+                        dcc.Graph(
+                            id="modal-activity-graph",
+                            style={'height': '400px'}
                         ),
-                    ],
-                    id="activity-modal",
-                    is_open=False,
-                    size="xl",
-                    backdrop=True,
-                    scrollable=True
-                ),
+                        width=6
+                    )
+                ]
+            )
+        ),
+    ],
+    id="activity-modal",
+    is_open=False,
+    size="xl",
+    backdrop=True,
+    scrollable=True
+)
+,
             ]
         )
 
@@ -785,6 +784,10 @@ def toggle_activity_modal(n_clicks_open, is_open):
 # --------------------------------------------------------------------------------------
 # Callback para actualizar logs y la gráfica dentro del Modal
 # --------------------------------------------------------------------------------------
+
+
+last_seen_detection_id = 0  # Globalmente, arriba de tu callback
+
 @app.callback(
     [Output("modal-activity-logs", "children"),
      Output("modal-activity-graph", "figure")],
@@ -792,36 +795,113 @@ def toggle_activity_modal(n_clicks_open, is_open):
     State("tabs", "active_tab")
 )
 def update_activity_logs(_, active_tab):
+    global last_seen_detection_id
+    
     if active_tab != "camaras":
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update  # No hace nada si estás en otra pestaña
 
-    global activity_logs_facial, activity_logs_objetos, activity_logs_poses
-    global detection_count_facial, detection_count_objetos, detection_count_poses
+    # Consulta al backend
+    try:
+        response = requests.get("http://127.0.0.1:5000/get_detections")
+        if response.status_code == 200:
+            detections = response.json()  # [{id, tipo, etiqueta, confianza, fecha}, ...]
+        else:
+            return (
+                html.Div("Error al obtener detecciones del backend.", style={'color': 'red'}),
+                go.Figure()
+            )
+    except Exception as e:
+        return (
+            html.Div(f"Error de conexión: {e}", style={'color': 'red'}),
+            go.Figure()
+        )
+
+    if not detections:
+        # No hay nada en la DB, limpias logs y figura
+        return (html.Div("No hay detecciones."), go.Figure())
+
+    # 1) Hallar el id máximo en los registros
+    current_max_id = max(det["id"] for det in detections)
+
+    # 2) Chequear si es mayor que el último id visto
+    if current_max_id <= last_seen_detection_id:
+        # Significa que NO hay detecciones nuevas => no actualizamos la interfaz
+        raise dash.exceptions.PreventUpdate
+    else:
+        # Hay nuevas detecciones => actualizamos la interfaz
+        last_seen_detection_id = current_max_id
+
+    # ---- Construir la interfaz de logs (tarjetas) y la gráfica, como antes ----
+    from dateutil import parser
+    def format_datetime(fecha_str):
+        try:
+            dt = parser.parse(fecha_str)
+            return dt.strftime('%d/%m/%Y %I:%M %p')  # Ej: "16/01/2025 02:05 PM"
+        except:
+            return fecha_str
+
+    from collections import defaultdict
+    detections_by_type = defaultdict(list)
+    for det in detections:
+        detections_by_type[det["tipo"]].append(det)
 
     logs_combined = []
+    for tipo, lista_dets in detections_by_type.items():
+        logs_combined.append(
+            html.H5(f"Detecciones de {tipo}:", style={'fontWeight': 'bold', 'marginTop': '10px'})
+        )
 
-    if activity_logs_facial:
-        logs_combined.append(html.Div("Detecciones Faciales:", style={'fontWeight': 'bold'}))
-        logs_combined += [html.Div(log) for log in activity_logs_facial[-50:]]
+        cards_for_this_type = []
+        for det in lista_dets:
+            fecha_formateada = format_datetime(det['fecha'])
+            card = html.Div(
+                [
+                    html.Div([
+                        html.Span("ID: ", style={'fontWeight': 'bold'}),
+                        html.Span(str(det['id']))
+                    ]),
+                    html.Div([
+                        html.Span("Etiqueta: ", style={'fontWeight': 'bold'}),
+                        html.Span(det['etiqueta'])
+                    ]),
+                    html.Div([
+                        html.Span("Confianza: ", style={'fontWeight': 'bold'}),
+                        html.Span(str(det['confianza']))
+                    ]),
+                    html.Div([
+                        html.Span("Fecha: ", style={'fontWeight': 'bold'}),
+                        html.Span(fecha_formateada)
+                    ]),
+                ],
+                style={
+                    'border': '1px solid #444',
+                    'borderRadius': '5px',
+                    'padding': '10px',
+                    'marginBottom': '10px',
+                    'backgroundColor': '#2D2D2D'
+                }
+            )
+            cards_for_this_type.append(card)
 
-    if activity_logs_objetos:
-        logs_combined.append(html.Hr())
-        logs_combined.append(html.Div("Detecciones de Objetos:", style={'fontWeight': 'bold'}))
-        logs_combined += [html.Div(log) for log in activity_logs_objetos[-50:]]
+        container_for_type = html.Div(
+            cards_for_this_type,
+            style={
+                'maxHeight': '200px',
+                'overflowY': 'auto',
+                'marginBottom': '20px'
+            }
+        )
+        logs_combined.append(container_for_type)
 
-    if activity_logs_poses:
-        logs_combined.append(html.Hr())
-        logs_combined.append(html.Div("Detecciones de Poses:", style={'fontWeight': 'bold'}))
-        logs_combined += [html.Div(log) for log in activity_logs_poses[-50:]]
+    # Gráfica
+    x_values = list(detections_by_type.keys())
+    y_values = [len(detections_by_type[t]) for t in x_values]
 
-    x_values = ["Facial", "Objetos", "Poses"]
-    y_values = [detection_count_facial, detection_count_objetos, detection_count_poses]
-
-    fig = go.Figure(data=[go.Bar(x=x_values, y=y_values, marker_color=['#2ca02c', '#1f77b4', '#d62728'])])
+    fig = go.Figure(data=[go.Bar(x=x_values, y=y_values)])
     fig.update_layout(
         title="Conteo de Detecciones",
         xaxis_title="Tipo de Reconocimiento",
-        yaxis_title="Conteo",
+        yaxis_title="Cantidad",
         template="plotly_dark",
         paper_bgcolor='#2C2C2C',
         plot_bgcolor='#2C2C2C',

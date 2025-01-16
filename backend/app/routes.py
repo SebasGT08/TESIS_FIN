@@ -70,3 +70,24 @@ def register_routes(app):
                 return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+ 
+
+    @app.route('/get_detections', methods=['GET'])
+    def get_detections():
+        """
+        Devuelve las detecciones de la tabla 'detecciones'.
+        """
+        try:
+            connection = get_db_connection()
+            if connection:
+                cursor = connection.cursor(dictionary=True)
+                # Cambia la consulta según la estructura de 'detecciones'
+                cursor.execute("SELECT id, tipo, etiqueta, confianza, fecha FROM detecciones ORDER BY id ASC")
+                detections = cursor.fetchall()
+                cursor.close()
+                connection.close()
+                return jsonify(detections), 200
+            else:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
