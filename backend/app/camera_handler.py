@@ -6,16 +6,13 @@ from .object_detection import procesar_objetos
 from .face_detection import procesar_rostros
 from .db_connection import get_db_connection
 
-# Variables globales para las colas
+# Variables para colas compartidas
 pose_queue = None
 object_queue = None
 face_queue = None
 event_queue = None
 
 def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue):
-    """
-    Asigna las colas compartidas desde el proceso principal.
-    """
     global pose_queue, object_queue, face_queue, event_queue
     pose_queue = p_pose_queue
     object_queue = p_object_queue
@@ -23,9 +20,6 @@ def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue):
     event_queue = p_event_queue
 
 def guardar_eventos(eventos, tipo):
-    """
-    Guarda eventos en la base de datos y los coloca en la cola de eventos para transmisión.
-    """
     try:
         connection = get_db_connection()
         if connection:
@@ -36,10 +30,11 @@ def guardar_eventos(eventos, tipo):
                     VALUES (%s, %s, %s, NOW())
                 """
                 cursor.execute(query, (tipo, evento['etiqueta'], evento['confianza']))
-                connection.commit()
+            connection.commit()
             cursor.close()
             connection.close()
 
+        # Colocar eventos en la cola de transmisión
         for evento in eventos:
             if not event_queue.full():
                 event_queue.put({
@@ -52,12 +47,8 @@ def guardar_eventos(eventos, tipo):
         print(f"[ERROR] No se pudo guardar el evento: {e}")
 
 def capturar_frames():
-    """
-    Captura frames de la cámara, los procesa y maneja detecciones críticas.
-    """
-    print("[DEBUG] Iniciando captura de frames...")
-
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Usa DirectShow como backend
+    print("[INFO] Iniciando captura de frames...")
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
         print("[ERROR] No se pudo abrir la cámara.")
         return
@@ -70,35 +61,21 @@ def capturar_frames():
                 time.sleep(0.1)
                 continue
 
-            # Procesar el frame para detección de poses
-            pose_frame, eventos_poses = procesar_poses(frame)
-            if not pose_queue.full() and pose_frame is not None:
-                pose_queue.put(pose_frame)
-                # print("[DEBUG] Frame de poses añadido a la cola.")
-            if eventos_poses:
-                guardar_eventos(eventos_poses, "poses")
+            # Procesar cada frame para detecciones
+            for procesar, queue, tipo in [
+                (procesar_poses, pose_queue, "poses"),
+                (procesar_objetos, object_queue, "objetos"),
+                (procesar_rostros, face_queue, "rostros")
+            ]:
+                processed_frame, eventos = procesar(frame)
+                if not queue.full() and processed_frame is not None:
+                    queue.put(processed_frame)
+                if eventos:
+                    guardar_eventos(eventos, tipo)
 
-            # Procesar el frame para detección de objetos
-            object_frame, eventos_objetos = procesar_objetos(frame)
-            if not object_queue.full() and object_frame is not None:
-                object_queue.put(object_frame)
-                # print("[DEBUG] Frame de objetos añadido a la cola.")
-            if eventos_objetos:
-                guardar_eventos(eventos_objetos, "objetos")
-
-            # Procesar el frame para detección de rostros
-            face_frame, eventos_rostros = procesar_rostros(frame)
-            if not face_queue.full() and face_frame is not None:
-                face_queue.put(face_frame)
-                # print("[DEBUG] Frame de rostros añadido a la cola.")
-            if eventos_rostros:
-                guardar_eventos(eventos_rostros, "rostros")
-
-            # Pausa para evitar sobrecarga
-            time.sleep(0.03)
-
+            time.sleep(0.03)  # Reducir uso de CPU
     except Exception as e:
-        print(f"[ERROR] Ocurrió un error durante la captura de frames: {e}")
+        print(f"[ERROR] Error durante captura: {e}")
     finally:
         cap.release()
-        print("[DEBUG] Cámara cerrada.")
+        print("[INFO] Cámara cerrada.")

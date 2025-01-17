@@ -26,6 +26,10 @@ if __name__ == "__main__":
     # Usa freeze_support para compatibilidad con Windows
     multiprocessing.freeze_support()
 
+    # Inicializar encodings solo una vez
+    from .face_detection import initialize_encodings
+    initialize_encodings()
+
     # Inicializa las colas compartidas
     manager = multiprocessing.Manager()
     pose_queue = manager.Queue(maxsize=10)
