@@ -10,6 +10,7 @@ from multiprocessing import Lock
 base_dir = os.path.dirname(__file__)
 model_path = os.path.abspath(os.path.join(base_dir, "../models/yolov8n-face.pt"))
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Dispositivo utilizado en face_detection: {device}")
 
 model = YOLO(model_path).to(device)
 model.conf = 0.25  # Umbral de confianza
@@ -18,35 +19,39 @@ model.conf = 0.25  # Umbral de confianza
 ENCODINGS_FOLDER = os.path.abspath('registered_encodings')
 os.makedirs(ENCODINGS_FOLDER, exist_ok=True)
 
-# Bloqueo para controlar la inicialización de encodings en multiproceso
-_encodings_lock = Lock()
+# Variables globales para encodings
 _encodings_loaded = False
 known_encodings = []
 known_names = []
 
 def initialize_encodings():
     """
-    Carga los encodings registrados de manera segura en un contexto multiproceso.
+    Carga los encodings registrados desde el directorio especificado.
     """
     global _encodings_loaded, known_encodings, known_names
-    with _encodings_lock:
-        if not _encodings_loaded:
-            known_encodings = []
-            known_names = []
-            for filename in os.listdir(ENCODINGS_FOLDER):
-                if filename.endswith('.npy'):
-                    name = os.path.splitext(filename)[0]
-                    encoding_path = os.path.join(ENCODINGS_FOLDER, filename)
-                    known_encodings.append(np.load(encoding_path))
-                    known_names.append(name)
-            _encodings_loaded = True
-            print(f"[INFO] Encodings cargados: {known_names}")
+    if not _encodings_loaded:
+        for filename in os.listdir(ENCODINGS_FOLDER):
+            if filename.endswith('.npy'):
+                name = os.path.splitext(filename)[0]
+                encoding_path = os.path.join(ENCODINGS_FOLDER, filename)
+                known_encodings.append(np.load(encoding_path))
+                known_names.append(name)
+        _encodings_loaded = True
+        print(f"[INFO] Encodings cargados: {known_names}")
+
+# Cargar los encodings al importar el módulo
+initialize_encodings()
 
 # Llamar explícitamente desde el proceso principal
 def procesar_rostros(frame):
     """
     Detecta y procesa rostros en un frame.
     """
+
+    global known_encodings, known_names
+    # print(f"[DEBUG] Número de encodings conocidos: {len(known_encodings)}")
+    # print(f"[DEBUG] Nombres conocidos: {known_names}")
+
     results = model.predict(source=frame, device=device, verbose=False)
     detections = results[0].boxes if results else []
     eventos = []

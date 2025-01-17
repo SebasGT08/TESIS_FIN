@@ -1,8 +1,5 @@
 import multiprocessing
-from .camera_handler import capturar_frames
 from . import create_app
-from .app_fastapi import app as fastapi_app
-import uvicorn
 
 # Flask App
 flask_app = create_app()
@@ -13,22 +10,21 @@ def run_flask():
 def run_fastapi(pose_queue, object_queue, face_queue, event_queue):
     # Asigna las colas compartidas al módulo de FastAPI
     from .app_fastapi import set_queues
+    from .app_fastapi import app as fastapi_app
+    import uvicorn
+
     set_queues(pose_queue, object_queue, face_queue, event_queue)
     uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
 
 def run_camera_handler(pose_queue, object_queue, face_queue, event_queue):
     # Asigna las colas compartidas al módulo de Camera Handler
-    from .camera_handler import set_queues
+    from .camera_handler import set_queues,capturar_frames
     set_queues(pose_queue, object_queue, face_queue, event_queue)
     capturar_frames()
 
 if __name__ == "__main__":
     # Usa freeze_support para compatibilidad con Windows
     multiprocessing.freeze_support()
-
-    # Inicializar encodings solo una vez
-    from .face_detection import initialize_encodings
-    initialize_encodings()
 
     # Inicializa las colas compartidas
     manager = multiprocessing.Manager()

@@ -45,8 +45,8 @@ async def pose_stream(websocket: WebSocket):
                         # print("[DEBUG] Frame de poses enviado al cliente.")
                     else:
                         print("[ERROR] Falló la codificación del frame de poses.")
-            else:
-                print("[DEBUG] Cola de poses vacía.")
+            # else:
+            #     print("[DEBUG] Cola de poses vacía.")
             await asyncio.sleep(0.03)
     except WebSocketDisconnect:
         print("[INFO] Conexión cerrada por el cliente en /ws/poses")
@@ -70,8 +70,8 @@ async def object_stream(websocket: WebSocket):
                         # print("[DEBUG] Frame de objetos enviado al cliente.")
                     else:
                         print("[ERROR] Falló la codificación del frame de objetos.")
-            else:
-                print("[DEBUG] Cola de objetos vacía.")
+            # else:
+            #     print("[DEBUG] Cola de objetos vacía.")
             await asyncio.sleep(0.03)
     except WebSocketDisconnect:
         print("[INFO] Conexión cerrada por el cliente en /ws/objects")
@@ -95,8 +95,8 @@ async def face_stream(websocket: WebSocket):
                         # print("[DEBUG] Frame de rostros enviado al cliente.")
                     else:
                         print("[ERROR] Falló la codificación del frame de rostros.")
-            else:
-                print("[DEBUG] Cola de rostros vacía.")
+            # else:
+            #     print("[DEBUG] Cola de rostros vacía.")
             await asyncio.sleep(0.03)
     except WebSocketDisconnect:
         print("[INFO] Conexión cerrada por el cliente en /ws/faces")
@@ -116,8 +116,8 @@ async def event_stream(websocket: WebSocket):
                 if evento is not None:
                     await websocket.send_json(evento)
                     # print("[DEBUG] Evento enviado al cliente.")
-            else:
-                print("[DEBUG] Cola de eventos vacía.")
+            # else:
+            #     print("[DEBUG] Cola de eventos vacía.")
             await asyncio.sleep(0.03)
     except WebSocketDisconnect:
         print("[INFO] Conexión cerrada por el cliente en /ws/events")
