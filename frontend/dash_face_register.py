@@ -538,41 +538,6 @@ def update_users_table(is_open, update_trigger):
         return build_users_table()
     else:
         raise dash.exceptions.PreventUpdate
-@app.callback(
-    [
-        Output('users-table-feedback', 'children'),
-        Output('users-update-store', 'data')
-    ],
-    [
-        Input({'type': 'confirm-delete-provider-user', 'index': MATCH}, 'submit_n_clicks')
-    ],
-    [
-        State({'type': 'confirm-delete-provider-user', 'index': MATCH}, 'index'),
-        State('users-update-store', 'data')
-    ],
-    prevent_initial_call=True
-)
-def delete_user(submit_n_clicks, user_id, update_trigger):
-    if submit_n_clicks and submit_n_clicks > 0:
-        try:
-            # Enviar solicitud DELETE al backend
-            response = requests.delete(
-                "http://127.0.0.1:5000/delete_usuario",
-                json={"id": user_id}
-            )
-            if response.status_code == 200:
-                feedback = dbc.Alert("Usuario eliminado exitosamente.", color="success", dismissable=True)
-                new_store_value = (int(update_trigger) if isinstance(update_trigger, int) else 0) + 1
-                return feedback, new_store_value
-            else:
-                error_msg = response.json().get("error", f"Error {response.status_code}")
-                feedback = dbc.Alert(f"Ocurrió un error al eliminar el usuario: {error_msg}", color="danger", dismissable=True)
-                return feedback, dash.no_update
-        except Exception as e:
-            feedback = dbc.Alert(f"Error al procesar la eliminación: {str(e)}", color="danger", dismissable=True)
-            return feedback, dash.no_update
-    else:
-        raise dash.exceptions.PreventUpdate
 
 
 @app.callback(
