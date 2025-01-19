@@ -24,6 +24,7 @@ def ensure_tables_exist(connection):
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 persona VARCHAR(255) NOT NULL,
                 encoding VARCHAR(255) NOT NULL,
+                estado CHAR(1) DEFAULT 'A',
                 fecha DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -38,6 +39,20 @@ def ensure_tables_exist(connection):
                 fecha DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+    # Crear tabla usuarios si no existe
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                usuario VARCHAR(50) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                tipo CHAR(1) NOT NULL DEFAULT 'E', -- 'A' para admin, 'E' para empleado
+                estado CHAR(1) DEFAULT 'A', -- 'A' activo por defecto
+                creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
 
         connection.commit()
         cursor.close()
