@@ -1,11 +1,10 @@
 from ultralytics import YOLO
-import cv2
 import torch
 import os
 
 # Construye la ruta absoluta al modelo
 base_dir = os.path.dirname(__file__)  # Directorio del archivo actual
-model_path = os.path.abspath(os.path.join(base_dir, "../models/object-detection_v1.pt"))
+model_path = os.path.abspath(os.path.join(base_dir, "../models/object-detection_s.pt"))
 model = YOLO(model_path)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
