@@ -176,7 +176,7 @@ def capturar_frames():
             for procesar, queue, tipo in [
                 (procesar_poses, pose_queue, "poses"),
                 (procesar_objetos, object_queue, "objetos"),
-                (procesar_rostros, face_queue, "rostros")
+                #(procesar_rostros, face_queue, "rostros")
             ]:
                 processed_frame, eventos = procesar(frame)
                 if not queue.full() and processed_frame is not None:

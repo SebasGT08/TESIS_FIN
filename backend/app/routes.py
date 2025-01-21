@@ -65,7 +65,6 @@ def register_routes(app):
 
         except Exception as e:
             return jsonify({"error": str(e)}), 400
-
     @app.route('/get_records', methods=['GET'])
     def get_records():
         try:
@@ -74,6 +73,10 @@ def register_routes(app):
                 cursor = connection.cursor(dictionary=True)
                 cursor.execute("SELECT * FROM personas ORDER BY id ASC")
                 records = cursor.fetchall()
+                
+                # Agrega un print de debug
+                print("Registros en /get_records =>", records)
+
                 cursor.close()
                 connection.close()
                 return jsonify(records), 200
@@ -81,6 +84,7 @@ def register_routes(app):
                 return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
     @app.route('/get_detections', methods=['GET'])
     def get_detections():
@@ -187,33 +191,7 @@ def register_routes(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @app.route('/update_persona', methods=['PUT'])
-    def update_persona():
-        data = request.json
-        persona_id = data.get('id')
-        nombre = data.get('persona')
-
-        if not persona_id or not nombre:
-            return jsonify({"error": "Faltan campos requeridos"}), 400
-
-        try:
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
-
-            cursor = conn.cursor()
-            update_query = "UPDATE personas SET persona = %s WHERE id = %s"
-            cursor.execute(update_query, (nombre, persona_id))
-            conn.commit()
-
-            cursor.close()
-            conn.close()
-
-            return jsonify({"message": "Persona actualizada exitosamente"}), 200
-
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
+  
     @app.route('/update_usuario', methods=['PUT'])
     def update_usuario():
             data = request.json
@@ -249,30 +227,7 @@ def register_routes(app):
                 return jsonify({"error": str(e)}), 500
 
 
-    @app.route('/delete_persona', methods=['DELETE'])
-    def delete_persona():
-        persona_id = request.json.get('id')
-
-        if not persona_id:
-            return jsonify({"error": "ID requerido"}), 400
-
-        try:
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
-
-            cursor = conn.cursor()
-            delete_query = "DELETE FROM personas WHERE id = %s"
-            cursor.execute(delete_query, (persona_id,))
-            conn.commit()
-
-            cursor.close()
-            conn.close()
-
-            return jsonify({"message": "Persona eliminada exitosamente"}), 200
-
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+ 
 
     @app.route('/delete_usuario', methods=['DELETE'])
     def delete_usuario():
@@ -355,3 +310,61 @@ def register_routes(app):
                 return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+    @app.route('/delete_record', methods=['DELETE'])
+    def delete_record():
+        record_id = request.json.get('id')
+
+        if not record_id:
+            return jsonify({"error": "ID requerido"}), 400
+
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
+            cursor = conn.cursor()
+            delete_query = "DELETE FROM registros WHERE id = %s"
+            cursor.execute(delete_query, (record_id,))
+            conn.commit()
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({"message": "Registro eliminado exitosamente"}), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+# register_routes.py (o donde tengas tus rutas Flask)
+
+    @app.route('/delete_persona', methods=['DELETE'])
+    def delete_persona():
+        data = request.json
+        print("Data recibido en /delete_persona =>", data)  # Depuración en Flask
+
+        if not data or 'id' not in data:
+            return jsonify({"error": "ID requerido"}), 400
+
+        persona_id = data['id']
+        print("ID a eliminar =>", persona_id)  # Depuración en Flask
+
+        # Conectar DB, hacer DELETE FROM personas WHERE id = persona_id
+        # ...
+        return jsonify({"message": "Persona eliminada exitosamente"}), 200
+
+
+    @app.route('/update_persona', methods=['PUT'])
+    def update_persona():
+        data = request.json
+        print("Data recibido en /update_persona =>", data)  # Depuración en Flask
+
+        persona_id = data.get('id')
+        nombre = data.get('persona')
+
+        if not persona_id or not nombre:
+            return jsonify({"error": "Faltan campos requeridos"}), 400
+
+        print("Actualizando persona_id =>", persona_id, "nuevo nombre =>", nombre)  # Depuración en Flask
+        # Conectar DB y hacer:
+        # UPDATE personas SET persona = nombre WHERE id = persona_id
+        # ...
+        return jsonify({"message": "Persona actualizada exitosamente"}), 200
