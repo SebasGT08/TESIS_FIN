@@ -76,22 +76,13 @@ def build_users_table():
                         [
                             dbc.Button(
                                 "Editar",
-                                id={'type': 'edit-user', 'index': user["id"]},
+                                id={'type': 'edit-user', 'index': str(user["id"])},  # Asegúrate de convertir a string
+                                 n_clicks=0,
                                 color="warning",
                                 size="sm",
                                 style={'marginRight': '5px'}
                             ),
-                            # Botón "Eliminar" con ConfirmDialogProvider
-                            dcc.ConfirmDialogProvider(
-                                dbc.Button(
-                                    "Eliminar",
-                                    id={'type': 'delete-user-button', 'index': user["id"]},
-                                    color="danger",
-                                    size="sm"
-                                ),
-                                id={'type': 'confirm-delete-provider-user', 'index': user["id"]},
-                                message=f"¿Estás seguro de que deseas eliminar al usuario {user['nombre']}?"
-                            ),
+                           
                         ],
                         style={'textAlign': 'center'}
                     ),
@@ -179,21 +170,39 @@ def create_table_body(filtered_records):
                         size="sm",
                         style={'marginRight': '5px'}
                     ),
-                    dcc.ConfirmDialogProvider(
-                        dbc.Button(
-                            "Eliminar",
-                            id={'type': 'delete-record-button', 'index': str(record["id"])},  # <-- a str
-                            color="danger",
-                            size="sm"
-                        ),
-                        id={'type': 'confirm-delete-provider-record', 'index': str(record["id"])},  # <-- a str
-                        message=f"¿Estás seguro de que deseas eliminar el registro {record['persona']}?"
-                    ),
+                    
                 ],
                 style={'textAlign': 'center'}
             ),
         ]) for record in filtered_records
     ])
+
+
+
+
+def create_table_body(records):
+    """
+    Crea el cuerpo de la tabla con los registros y botones de acción.
+    """
+    rows = []
+    for record in records:
+        rows.append(
+            html.Tr([
+                html.Td(record["id"]),
+                html.Td(record["persona"]),
+                html.Td(record["fecha"]),
+                html.Td(record["estado"]),
+                html.Td(
+                    dbc.Button(
+                        "Editar",
+                        id={'type': 'edit-record', 'index': str(record["id"])},  # Convertir a string
+                        color="warning",
+                        n_clicks=0
+                    )
+                ),
+            ])
+        )
+    return html.Tbody(rows)
 
 
 def build_records_table(records):
@@ -218,7 +227,7 @@ def build_records_table(records):
         )
     ]
 
-    table_body = create_table_body(records)  # Reutiliza la función de arriba
+    table_body = create_table_body(records)  # Crea el cuerpo de la tabla
 
     table = html.Div(
         [
@@ -258,33 +267,4 @@ def build_records_table(records):
     )
     return table
 
-# Modal para Editar Registro de persona
-dbc.Modal(
-    [
-        dbc.ModalHeader(dbc.ModalTitle("Editar Nombre de la Persona")),
-        dbc.ModalBody(
-            [
-                # Campo oculto con el ID
-                dbc.Input(id="edit-persona-id", type="hidden"),
-                
-                dbc.Label("Nombre de la Persona", style={'fontSize': '16px'}),
-                dbc.Input(
-                    id="edit-persona-name",
-                    type="text",
-                    placeholder="Nombre",
-                    style={'marginBottom': '15px'}
-                ),
 
-                # Mensaje de validación / error / éxito
-                html.Div(id="edit-persona-msg", style={'marginTop':'10px', 'color': 'red'})
-            ]
-        ),
-        dbc.ModalFooter(
-            dbc.Button("Guardar", id="btn-update-persona", color="primary")
-        ),
-    ],
-    id="modal-edit-persona",
-    is_open=False,
-    size="md",
-    centered=True,
-),

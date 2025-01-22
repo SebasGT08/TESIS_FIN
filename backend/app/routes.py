@@ -194,37 +194,38 @@ def register_routes(app):
   
     @app.route('/update_usuario', methods=['PUT'])
     def update_usuario():
-            data = request.json
-            usuario_id = data.get('id')
-            nombre = data.get('nombre')
-            usuario = data.get('usuario')
-            password = data.get('password')
-            tipo = data.get('tipo')
+        data = request.json
+        usuario_id = data.get('id')
+        nombre = data.get('nombre')
+        usuario = data.get('usuario')
+        password = data.get('password')
+        tipo = data.get('tipo')
+        estado = data.get('estado')  # Nuevo campo para estado
 
-            if not usuario_id or not nombre or not usuario or not password or not tipo:
-                return jsonify({"error": "Faltan campos requeridos"}), 400
+        if not usuario_id or not nombre or not usuario or not password or not tipo or not estado:
+            return jsonify({"error": "Faltan campos requeridos"}), 400
 
-            try:
-                conn = get_db_connection()
-                if not conn:
-                    return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
 
-                cursor = conn.cursor()
-                update_query = """
-                    UPDATE usuarios 
-                    SET nombre = %s, usuario = %s, password = %s, tipo = %s 
-                    WHERE id = %s
-                """
-                cursor.execute(update_query, (nombre, usuario, password, tipo, usuario_id))
-                conn.commit()
+            cursor = conn.cursor()
+            update_query = """
+                UPDATE usuarios 
+                SET nombre = %s, usuario = %s, password = %s, tipo = %s, estado = %s 
+                WHERE id = %s
+            """
+            cursor.execute(update_query, (nombre, usuario, password, tipo, estado, usuario_id))
+            conn.commit()
 
-                cursor.close()
-                conn.close()
+            cursor.close()
+            conn.close()
 
-                return jsonify({"message": "Usuario actualizado exitosamente"}), 200
+            return jsonify({"message": "Usuario actualizado exitosamente"}), 200
 
-            except Exception as e:
-                return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 
  
@@ -352,19 +353,82 @@ def register_routes(app):
         return jsonify({"message": "Persona eliminada exitosamente"}), 200
 
 
+  
+
     @app.route('/update_persona', methods=['PUT'])
     def update_persona():
-        data = request.json
-        print("Data recibido en /update_persona =>", data)  # Depuración en Flask
+        try:
+            data = request.json
+            print("Datos recibidos para actualizar:", data)  # Depuración
 
-        persona_id = data.get('id')
-        nombre = data.get('persona')
+            persona_id = data.get('id')
+            nombre = data.get('persona')
+            estado = data.get('estado')
 
-        if not persona_id or not nombre:
-            return jsonify({"error": "Faltan campos requeridos"}), 400
+            if not persona_id or not nombre or not estado:
+                return jsonify({"error": "Faltan campos requeridos"}), 400
 
-        print("Actualizando persona_id =>", persona_id, "nuevo nombre =>", nombre)  # Depuración en Flask
-        # Conectar DB y hacer:
-        # UPDATE personas SET persona = nombre WHERE id = persona_id
-        # ...
-        return jsonify({"message": "Persona actualizada exitosamente"}), 200
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
+            cursor = conn.cursor()
+            
+            # Verificar si la persona existe
+            cursor.execute("SELECT id FROM personas WHERE id = %s", (persona_id,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Persona no encontrada"}), 404
+
+            update_query = "UPDATE personas SET persona=%s, estado=%s WHERE id=%s"
+            cursor.execute(update_query, (nombre, estado, persona_id))
+            conn.commit()
+
+            print("Persona actualizada correctamente.")  # Depuración
+            cursor.close()
+            conn.close()
+            return jsonify({"message": "Persona actualizada con éxito"}), 200
+
+        except Exception as e:
+            print("Error al actualizar persona:", str(e))  # Depuración
+            return jsonify({"error": str(e)}), 500
+
+
+    @app.route('/get_one_persona/<int:persona_id>', methods=['GET'])
+    def get_one_persona(persona_id):
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "No se pudo conectar a la DB"}), 500
+
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, persona, estado FROM personas WHERE id=%s LIMIT 1", (persona_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if not row:
+                return jsonify({"error": "Persona no encontrada"}), 404
+
+            return jsonify(row), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/get_one_usuario/<int:usuario_id>', methods=['GET'])
+    def get_one_usuario(usuario_id):
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, nombre, usuario, password, tipo, estado FROM usuarios WHERE id=%s LIMIT 1", (usuario_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if not row:
+                return jsonify({"error": "Usuario no encontrado"}), 404
+
+            return jsonify(row), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
