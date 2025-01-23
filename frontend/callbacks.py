@@ -7,6 +7,7 @@ from dash.exceptions import PreventUpdate
 import dash
 import dash
 ctx = dash.callback_context
+from datetime import datetime
 
 # Importa MATCH, ALL para pattern matching
 from dash.dependencies import MATCH, ALL
@@ -943,9 +944,69 @@ def toggle_users_table_modal(n_clicks_open):
     print("El botón presionado no es 'Ver Usuarios'.")
     return False
 
+def format_datetime(fecha_str):
+    try:
+        # Convierte la fecha de la base de datos (asumiendo formato 'YYYY-MM-DD HH:MM:SS')
+        dt = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
+        # Devuelve en formato: DD/MM/YYYY HH:MM AM/PM
+        return dt.strftime('%d/%m/%Y %I:%M %p')
+    except ValueError:
+        return fecha_str
+
+last_seen_detection_id = 0
 
 
+@app.callback(
+    Output("alert-container", "children"),
+    Input("interval", "n_intervals"),
+    prevent_initial_call=True
+)
+def display_new_alerts(n_intervals):
+    global last_seen_detection_id
 
+    try:
+        response = requests.get("http://127.0.0.1:5000/get_detections")
+        if response.status_code == 200:
+            detections = response.json()
+        else:
+            return dbc.Alert("Error al obtener detecciones del backend.", color="danger", dismissable=True)
+    except Exception as e:
+        return dbc.Alert(f"Error de conexión: {e}", color="danger", dismissable=True)
+
+    if not detections:
+        return no_update  # No hay alertas nuevas
+
+    # Filtrar solo las nuevas alertas
+    new_alerts = [det for det in detections if det["id"] > last_seen_detection_id]
+
+    if not new_alerts:
+        return no_update  # No hay alertas nuevas
+
+    # Actualizar el último ID visto
+    last_seen_detection_id = max(det["id"] for det in new_alerts)
+
+    # Crear alertas visuales en la página principal
+    alert_items = []
+    for det in new_alerts:
+        fecha_formateada = format_datetime(det['fecha'])
+        alert = dbc.Alert(
+            [
+                html.H5("⚠ Nueva Alerta de Seguridad", className="alert-heading"),
+                html.P(f"Tipo de evento: {det['etiqueta']}", style={"fontWeight": "bold"}),
+                html.P(f"Confianza: {det['confianza']:.2f}"),
+                html.P(f"Fecha: {fecha_formateada}"),
+            ],
+            color="danger",
+            dismissable=True,
+            style={
+                "marginBottom": "10px",
+                "borderLeft": "5px solid red",
+                "boxShadow": "0px 0px 10px rgba(255,0,0,0.5)"
+            }
+        )
+        alert_items.append(alert)
+
+    return alert_items
 
     triggered = ctx.triggered[0]["prop_id"] if ctx.triggered else "N/A"
     print(f"Estado actual del modal: {is_open}, Triggered by: {triggered}")
