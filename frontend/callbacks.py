@@ -620,13 +620,16 @@ def update_activity_logs(_, active_tab):
         if response.status_code == 200:
             detections = response.json()
         else:
+            print("Error al obtener detecciones del backend. Estado:", response.status_code)
             return html.Div("Error al obtener detecciones del backend.", style={'color': 'red'}), {}
     except Exception as e:
+        print(f"Error de conexión con el backend: {e}")
         return html.Div(f"Error de conexión: {e}", style={'color': 'red'}), {}
 
     if not detections:
-        return html.Div("No hay detecciones."), {}
+        return html.Div("No hay detecciones registradas."), {}
 
+    # Verificar si hay nuevas detecciones
     current_max_id = max(det["id"] for det in detections)
     if current_max_id <= last_seen_detection_id:
         raise exceptions.PreventUpdate
@@ -638,13 +641,16 @@ def update_activity_logs(_, active_tab):
     for det in detections:
         detections_by_type[det["tipo"]].append(det)
 
+    # Función para formatear fecha correctamente
     def format_datetime(fecha_str):
         try:
             dt = parser.parse(fecha_str)
             return dt.strftime('%d/%m/%Y %I:%M %p')
-        except:
+        except Exception as e:
+            print(f"Error al formatear fecha: {e}")
             return fecha_str
 
+    # Crear la lista de logs
     logs_combined = []
     for tipo, lista_dets in detections_by_type.items():
         logs_combined.append(
@@ -655,22 +661,10 @@ def update_activity_logs(_, active_tab):
             fecha_formateada = format_datetime(det['fecha'])
             card = html.Div(
                 [
-                    html.Div([
-                        html.Span("ID: ", style={'fontWeight': 'bold'}),
-                        html.Span(str(det['id']))
-                    ]),
-                    html.Div([
-                        html.Span("Etiqueta: ", style={'fontWeight': 'bold'}),
-                        html.Span(det['etiqueta'])
-                    ]),
-                    html.Div([
-                        html.Span("Confianza: ", style={'fontWeight': 'bold'}),
-                        html.Span(str(det['confianza']))
-                    ]),
-                    html.Div([
-                        html.Span("Fecha: ", style={'fontWeight': 'bold'}),
-                        html.Span(fecha_formateada)
-                    ]),
+                    html.Div([html.Span("ID: ", style={'fontWeight': 'bold'}), html.Span(str(det['id']))]),
+                    html.Div([html.Span("Etiqueta: ", style={'fontWeight': 'bold'}), html.Span(det['etiqueta'])]),
+                    html.Div([html.Span("Confianza: ", style={'fontWeight': 'bold'}), html.Span(f"{det['confianza']:.2f}")]),
+                    html.Div([html.Span("Fecha: ", style={'fontWeight': 'bold'}), html.Span(fecha_formateada)]),
                 ],
                 style={
                     'border': '1px solid #444',
@@ -685,16 +679,20 @@ def update_activity_logs(_, active_tab):
         container_for_type = html.Div(
             cards_for_this_type,
             style={
-                'maxHeight': '200px',
+                'maxHeight': '300px',
                 'overflowY': 'auto',
                 'marginBottom': '20px'
             }
         )
         logs_combined.append(container_for_type)
 
+    # Generar gráfica de conteo de detecciones
     import plotly.graph_objects as go
     x_values = list(detections_by_type.keys())
     y_values = [len(detections_by_type[t]) for t in x_values]
+
+    if not x_values or not y_values:
+        return html.Div("No hay datos para mostrar."), {}
 
     fig = go.Figure([go.Bar(x=x_values, y=y_values)])
     fig.update_layout(
@@ -704,10 +702,14 @@ def update_activity_logs(_, active_tab):
         template="plotly_dark",
         paper_bgcolor='#2C2C2C',
         plot_bgcolor='#2C2C2C',
-        font_color='white'
+        font_color='white',
+        height=400
     )
 
     return logs_combined, fig
+
+
+
 
 # ----------------------------------------------------------------------------
 # 14) Único callback para EDITAR y ELIMINAR => "records-table" con allow_duplicate
