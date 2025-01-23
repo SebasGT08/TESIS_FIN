@@ -944,24 +944,23 @@ def toggle_users_table_modal(n_clicks_open):
     print("El botón presionado no es 'Ver Usuarios'.")
     return False
 
+
 def format_datetime(fecha_str):
     try:
-        # Convierte la fecha de la base de datos (asumiendo formato 'YYYY-MM-DD HH:MM:SS')
         dt = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
-        # Devuelve en formato: DD/MM/YYYY HH:MM AM/PM
         return dt.strftime('%d/%m/%Y %I:%M %p')
     except ValueError:
-        return fecha_str
+        return fecha_str  # Devuelve la fecha original si hay un error
+
 
 last_seen_detection_id = 0
-
-
 @app.callback(
     Output("alert-container", "children"),
     Input("interval", "n_intervals"),
+    State("alert-container", "children"),
     prevent_initial_call=True
 )
-def display_new_alerts(n_intervals):
+def display_new_alerts(n_intervals, current_alerts):
     global last_seen_detection_id
 
     try:
@@ -985,16 +984,15 @@ def display_new_alerts(n_intervals):
     # Actualizar el último ID visto
     last_seen_detection_id = max(det["id"] for det in new_alerts)
 
-    # Crear alertas visuales en la página principal
-    alert_items = []
+    # Crear nuevas alertas visuales con la fecha formateada
+    new_alert_items = []
     for det in new_alerts:
-        fecha_formateada = format_datetime(det['fecha'])
+        formatted_date = format_datetime(det['fecha'])
         alert = dbc.Alert(
             [
-                html.H5("⚠ Nueva Alerta de Seguridad", className="alert-heading"),
-                html.P(f"Tipo de evento: {det['etiqueta']}", style={"fontWeight": "bold"}),
-                html.P(f"Confianza: {det['confianza']:.2f}"),
-                html.P(f"Fecha: {fecha_formateada}"),
+                html.H5("⚠ Alerta", className="alert-heading"),
+                html.P(f"Motivo: {det['etiqueta']}", style={"fontWeight": "bold"}),
+                html.P(f"{formatted_date}"),
             ],
             color="danger",
             dismissable=True,
@@ -1004,10 +1002,10 @@ def display_new_alerts(n_intervals):
                 "boxShadow": "0px 0px 10px rgba(255,0,0,0.5)"
             }
         )
-        alert_items.append(alert)
+        new_alert_items.append(alert)
 
-    return alert_items
-
-    triggered = ctx.triggered[0]["prop_id"] if ctx.triggered else "N/A"
-    print(f"Estado actual del modal: {is_open}, Triggered by: {triggered}")
-    return no_update
+    # Si ya hay alertas previas, añadir las nuevas arriba manteniendo el historial
+    if current_alerts is None:
+        return new_alert_items
+    else:
+        return new_alert_items + current_alerts

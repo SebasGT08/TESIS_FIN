@@ -32,14 +32,17 @@ login_layout = dbc.Container(
 app_layout = dbc.Container(
     [
         html.H1("Registro Facial", style={'textAlign': 'center', 'color': 'white', 'marginTop': '20px'}),
-        html.Div(id="alert-container", style={
+       html.Div(id="alert-container", style={
             "position": "fixed",
             "top": "20px",
             "right": "20px",
             "width": "400px",
-            "zIndex": 9999
+            "zIndex": 9999,
+            "display": "flex",
+            "flexDirection": "column-reverse"  # Asegura que las nuevas alertas se agreguen abajo
         }),
-        
+        dcc.Interval(id="interval", interval=5000, n_intervals=0),
+
         dbc.Row(
             [
                 dbc.Col(
