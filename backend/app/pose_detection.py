@@ -8,7 +8,7 @@ from ultralytics import YOLO
 # 1. Configuración del modelo YOLO
 # ---------------------------------------------------
 base_dir = os.path.dirname(__file__)  # Directorio del archivo actual
-model_path = os.path.abspath(os.path.join(base_dir, "../models/yolo11n-pose.pt"))
+model_path = os.path.abspath(os.path.join(base_dir, "../models/yolo11s-pose.pt"))
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = YOLO(model_path).to(device)
@@ -200,7 +200,7 @@ def detectar_actividad(keypoints):
 # ---------------------------------------------------
 # 4. Función principal de procesar cada frame
 # ---------------------------------------------------
-def procesar_frame(frame):
+def procesar_frame(frame, prev_time):
     """
     1. Aplica el modelo YOLO para detectar keypoints de cada persona en el frame.
     2. Determina la actividad y dibuja la etiqueta correspondiente en la imagen.
@@ -244,4 +244,4 @@ def procesar_frame(frame):
                     if actividad != "Normal":
                         eventos.append({"etiqueta": actividad, "confianza": 1.0})
 
-    return annotated_frame, eventos
+    return annotated_frame, eventos, prev_time

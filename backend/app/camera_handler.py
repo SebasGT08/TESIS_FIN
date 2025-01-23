@@ -172,13 +172,15 @@ def capturar_frames():
                 time.sleep(0.1)
                 continue
 
+            prev_time = time.time()  # Inicializar tiempo para calcular FPS
+
             # Procesar cada frame para detecciones
             for procesar, queue, tipo in [
                 (procesar_poses, pose_queue, "poses"),
                 (procesar_objetos, object_queue, "objetos"),
                 (procesar_rostros, face_queue, "rostros")
             ]:
-                processed_frame, eventos = procesar(frame)
+                processed_frame, eventos, prev_time = procesar(frame, prev_time)
                 if not queue.full() and processed_frame is not None:
                     queue.put(processed_frame)
                 if eventos:

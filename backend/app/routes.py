@@ -4,15 +4,15 @@ import base64
 import numpy as np
 from flask import Flask, request, jsonify
 from PIL import Image
-import face_recognition
+from insightface.app import FaceAnalysis
 from datetime import datetime
 from .db_connection import get_db_connection  # Importar conexión
 import os
 import mysql.connector
 
-# Directorio para guardar los encodings
-ENCODINGS_FOLDER = os.path.abspath('registered_encodings')
-os.makedirs(ENCODINGS_FOLDER, exist_ok=True)
+# Configuración de InsightFace
+app_insightface = FaceAnalysis(providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+app_insightface.prepare(ctx_id=0, det_size=(640, 640))  # ctx_id=0 para usar GPU
 
 def register_routes(app):
     @app.route('/register', methods=['POST'])
@@ -32,16 +32,18 @@ def register_routes(app):
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
             image_np = np.array(image)
 
-            # Obtener encodings
-            encodings = face_recognition.face_encodings(image_np)
-            if not encodings:
+             # Detectar rostros y obtener embeddings con InsightFace
+            faces = app_insightface.get(image_np)
+            if not faces:
                 return jsonify({"error": "No se detectó ningún rostro en la imagen."}), 400
-            encoding = encodings[0]
+            if len(faces) > 1:
+                return jsonify({"error": "Se detectaron múltiples rostros en la imagen. Por favor, proporcione una imagen con un solo rostro."}), 400
 
-            # Guardar el encoding como archivo .npy
-            encoding_path = os.path.join(ENCODINGS_FOLDER, f"{name}.npy")
-            os.makedirs(ENCODINGS_FOLDER, exist_ok=True)  # Crear carpeta si no existe
-            np.save(encoding_path, encoding)
+            # Extraer el embedding del primer rostro detectado
+            encoding = faces[0].embedding
+
+            # Serializar el encoding como string para almacenar en la base de datos
+            encoding_serialized = base64.b64encode(encoding.tobytes()).decode('utf-8')
 
             # Inserción en la base de datos
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -53,18 +55,18 @@ def register_routes(app):
                         INSERT INTO personas (persona, encoding, fecha, estado)
                         VALUES (%s, %s, %s, 'A')
                     """
-                    cursor.execute(query, (name, f"{name}.npy", current_time))
+                    cursor.execute(query, (name, encoding_serialized, current_time))
                     connection.commit()
                 finally:
                     cursor.close()
                     connection.close()
             else:
                 return jsonify({"error": "No se pudo conectar a la base de datos."}), 500
-
             return jsonify({"message": "Registro exitoso."}), 200
 
         except Exception as e:
             return jsonify({"error": str(e)}), 400
+            
     @app.route('/get_records', methods=['GET'])
     def get_records():
         try:
