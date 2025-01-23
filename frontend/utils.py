@@ -77,7 +77,6 @@ def build_users_table():
                             dbc.Button(
                                 "Editar",
                                 id={'type': 'edit-user', 'index': str(user["id"])},  # Asegúrate de convertir a string
-                                 n_clicks=0,
                                 color="warning",
                                 size="sm",
                                 style={'marginRight': '5px'}

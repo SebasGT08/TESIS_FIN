@@ -352,7 +352,6 @@ def render_tab_content(active_tab):
                         dbc.ModalHeader(dbc.ModalTitle("Editar Usuario")),
                         dbc.ModalBody(
                             [
-                                html.Div(id="edit-user-feedback", children="", style={"display": "none"}),
 
                                 dbc.Input(id="edit-usuario-id", type="hidden"),
                                 dbc.Label("Nombre Completo"),
@@ -378,7 +377,9 @@ def render_tab_content(active_tab):
                                         {"label": "Inactivo (I)", "value": "I"},
                                     ],
                                     placeholder="Selecciona el estado"
-                                )
+                                ),
+                                html.Div(id="edit-user-feedback", style={"display": "none"})
+
                             ]
                         ),
                         dbc.ModalFooter(
@@ -424,6 +425,7 @@ def render_tab_content(active_tab):
                                 ),
 
                                 html.Div(id="edit-persona-msg", style={'marginTop': '10px', 'color': 'red'})
+
                             ]
                         ),
                         dbc.ModalFooter(
@@ -813,8 +815,8 @@ def update_records_table(records):
 
 @app.callback(
     [
+        Output("users-update-store", "data", allow_duplicate=True),
         Output("modal-edit-usuario", "is_open"),
-        Output("edit-user-feedback", "children", allow_duplicate=True),
         Output("edit-usuario-id", "value"),
         Output("edit-usuario-name", "value"),
         Output("edit-usuario-username", "value"),
@@ -824,75 +826,103 @@ def update_records_table(records):
     ],
     [
         Input({'type': 'edit-user', 'index': ALL}, 'n_clicks'),
-        Input("open-users-table-modal", "n_clicks")
+        Input("btn-update-usuario", "n_clicks")
     ],
     [
         State({'type': 'edit-user', 'index': ALL}, 'id'),
+        State("edit-usuario-id", "value"),
+        State("edit-usuario-name", "value"),
+        State("edit-usuario-username", "value"),
+        State("edit-usuario-password", "value"),
+        State("edit-usuario-tipo", "value"),
+        State("edit-usuario-estado", "value"),
     ],
     prevent_initial_call=True
 )
-def handle_edit_user_modal(edit_clicks_list, open_users_click, edit_ids):
+def handle_usuario_edit(edit_clicks_list, update_click,
+                        edit_ids,
+                        current_id_editing,
+                        current_name_editing,
+                        current_username_editing,
+                        current_password_editing,
+                        current_tipo_editing,
+                        current_estado_editing):
     ctx = dash.callback_context
 
-    print("\n===== Callback Activado =====")
-    print(f"ctx.triggered: {ctx.triggered}")
-    print(f"Inputs recibidos - Edit Clicks: {edit_clicks_list}, Open Users Click: {open_users_click}")
-    print(f"Estados recibidos - Edit IDs: {edit_ids}")
-
     if not ctx.triggered:
-        print("No se activó ningún evento explícito. PreventUpdate.")
-        raise PreventUpdate
+        raise dash.exceptions.PreventUpdate
 
-    triggered_id = ctx.triggered[0]['prop_id']
-    print(f"Evento disparado por: {triggered_id}")
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    print(f"Triggered ID => {triggered_id}")
 
-    # Ver si se hizo clic en "Ver Usuarios" y evitar abrir el modal
-    if triggered_id == "open-users-table-modal.n_clicks":
-        print("Botón 'Ver Usuarios' presionado, NO abrir modal de edición.")
-        return False, "", no_update, no_update, no_update, no_update, no_update, no_update
+    is_modal_open = False
+    new_edit_id = ""
+    new_edit_name = ""
+    new_edit_username = ""
+    new_edit_password = ""
+    new_edit_tipo = ""
+    new_edit_estado = ""
+    message = ""
 
-    print("Procesando botones de edición...")
+    # 1) Abrir modal (botón "Editar")
+    if "edit-user" in triggered_id:
+        for i, n_clicks in enumerate(edit_clicks_list):
+            if n_clicks and edit_ids[i] is not None:
+                usuario_str_id = edit_ids[i]['index']
+                print(f"Abrir modal para usuario ID: {usuario_str_id}")
+                if usuario_str_id:
+                    usuario_id = int(usuario_str_id)
+                    response = requests.get(f"http://127.0.0.1:5000/get_one_usuario/{usuario_id}")
+                    if response.status_code == 200:
+                        data = response.json()
+                        new_edit_id = str(data["id"])
+                        new_edit_name = data["nombre"]
+                        new_edit_username = data["usuario"]
+                        new_edit_password = data["password"]
+                        new_edit_tipo = data["tipo"]
+                        new_edit_estado = data["estado"]
+                        is_modal_open = True
+                        print("Datos recibidos correctamente del backend.")
+                    else:
+                        print("Error al obtener datos del usuario del backend.")
+                        message = dbc.Alert("Error al obtener datos.", color="danger")
+                break
 
-    # Buscar el botón de edición presionado
-    for i, n_clicks in enumerate(edit_clicks_list):
-        print(f"Botón índice {i}, clics: {n_clicks}")
-
-        if n_clicks and n_clicks > 0:
-            if not edit_ids or edit_ids[i] is None:
-                print(f"Error: índice del usuario en la posición {i} es None.")
-                continue
-
-            usuario_id = edit_ids[i].get('index', None)
-            if not usuario_id:
-                print(f"Error: índice no encontrado en la posición {i}.")
-                continue
-
-            print(f"Obteniendo datos del usuario con ID: {usuario_id}")
+    # 2) Guardar cambios (botón "Guardar")
+    elif triggered_id == "btn-update-usuario":
+        if all([current_id_editing, current_name_editing, current_username_editing, 
+                current_password_editing, current_tipo_editing, current_estado_editing]):
+            print(f"Guardando => ID: {current_id_editing}, Nombre: {current_name_editing}")
             try:
-                response = requests.get(f"http://127.0.0.1:5000/get_one_usuario/{usuario_id}")
+                usuario_id = int(current_id_editing)
+                payload = {
+                    "id": usuario_id,
+                    "nombre": current_name_editing,
+                    "usuario": current_username_editing,
+                    "password": current_password_editing,
+                    "tipo": current_tipo_editing,
+                    "estado": current_estado_editing
+                }
+                response = requests.put("http://127.0.0.1:5000/update_usuario", json=payload)
                 if response.status_code == 200:
-                    data = response.json()
-                    print(f"Datos recibidos correctamente: {data}")
-                    return (
-                        True,  # Abre el modal
-                        "",  # Limpiar mensaje de error
-                        str(data.get("id", "")),
-                        data.get("nombre", ""),
-                        data.get("usuario", ""),
-                        data.get("password", ""),
-                        data.get("tipo", ""),
-                        data.get("estado", "")
-                    )
+                    message = dbc.Alert("Usuario actualizado correctamente.", color="success")
+                    is_modal_open = False
                 else:
-                    print(f"Error al obtener datos. Código de estado: {response.status_code}")
-                    return False, "Error al obtener datos del usuario.", no_update, no_update, no_update, no_update, no_update, no_update
+                    message = dbc.Alert(f"Error al actualizar: {response.json().get('error', 'Error desconocido')}", color="danger")
+            except ValueError:
+                message = dbc.Alert("ID no válido.", color="danger")
+        else:
+            message = dbc.Alert("Todos los campos son obligatorios.", color="warning")
 
-            except Exception as e:
-                print(f"Error de conexión con el backend: {str(e)}")
-                return False, f"Error de conexión: {str(e)}", no_update, no_update, no_update, no_update, no_update, no_update
+    # 3) Refrescar la lista de usuarios después de actualizar
+    records_response = requests.get("http://127.0.0.1:5000/get_users")
+    if records_response.status_code == 200:
+        records = records_response.json()
+        return records, is_modal_open, new_edit_id, new_edit_name, new_edit_username, new_edit_password, new_edit_tipo, new_edit_estado
+    else:
+        return dash.no_update, is_modal_open, new_edit_id, new_edit_name, new_edit_username, new_edit_password, new_edit_tipo, new_edit_estado
 
-    print("Ningún botón de edición presionado. PreventUpdate.")
-    return False, "", no_update, no_update, no_update, no_update, no_update, no_update
+
 
 @app.callback(
     Output("modal-users-table", "is_open"),
@@ -913,106 +943,7 @@ def toggle_users_table_modal(n_clicks_open):
 
 
 
-@app.callback(
-    Output("users-table-container", "children"),
-    Input("users-update-store", "data")
-)
-def update_users_table_store(data):
-    return build_users_table()
 
-@app.callback(
-    [
-        # Tus 3 salidas originales:
-        Output("edit-user-feedback", "children"),
-        Output("modal-edit-usuario", "is_open", allow_duplicate=True),
-        Output("users-update-store", "data"),
-        # Y 6 salidas adicionales, para limpiar los campos:
-        Output("edit-usuario-id", "value", allow_duplicate=True),
-        Output("edit-usuario-name", "value", allow_duplicate=True),
-        Output("edit-usuario-username", "value", allow_duplicate=True),
-        Output("edit-usuario-password", "value", allow_duplicate=True),
-        Output("edit-usuario-tipo", "value", allow_duplicate=True),
-        Output("edit-usuario-estado", "value", allow_duplicate=True),
-    ],
-    Input("btn-update-usuario", "n_clicks"),
-    [
-        State("edit-usuario-id", "value"),
-        State("edit-usuario-name", "value"),
-        State("edit-usuario-username", "value"),
-        State("edit-usuario-password", "value"),
-        State("edit-usuario-tipo", "value"),
-        State("edit-usuario-estado", "value"),
-    ],
-    prevent_initial_call=True
-)
-def update_user_and_refresh(n_clicks, usuario_id, nombre, username, password, tipo, estado):
-    """
-    1) Hace PUT al backend para actualizar el usuario.
-    2) Si éxito: cierra el modal, refresca la lista y limpia campos + mensaje.
-    3) Si hay error: mantiene el modal abierto, muestra error y no limpia.
-    """
-    if not all([usuario_id, nombre, username, password, tipo, estado]):
-        alerta = dbc.Alert("Todos los campos son obligatorios.", color="warning")
-        # Mantiene modal abierto y no limpia nada
-        return (
-            alerta, True, no_update,
-            no_update, no_update, no_update, no_update, no_update, no_update
-        )
-    
-    payload = {
-        "id": usuario_id,
-        "nombre": nombre,
-        "usuario": username,
-        "password": password,
-        "tipo": tipo,
-        "estado": estado
-    }
-
-    try:
-        response = requests.put("http://127.0.0.1:5000/update_usuario", json=payload)
-        if response.status_code == 200:
-            # Si todo OK, recargamos la lista de usuarios
-            updated_users_resp = requests.get("http://127.0.0.1:5000/get_users")
-            if updated_users_resp.status_code == 200:
-                updated_users = updated_users_resp.json()
-                
-                alerta = dbc.Alert("Usuario actualizado correctamente.", color="success")
-                # Cierra modal => False
-                # Retorna lista nueva => updated_users
-                # Limpia todos los campos => ""
-                return (
-                    alerta, False, updated_users,
-                    "", "", "", "", "", ""
-                )
-            else:
-                alerta = dbc.Alert("Actualizado, pero error al recargar la lista.", color="danger")
-                # Mantener modal abierto
-                return (
-                    alerta, True, no_update,
-                    no_update, no_update, no_update, no_update, no_update, no_update
-                )
-        else:
-            err_msg = response.json().get("error", "Error desconocido")
-            alerta = dbc.Alert(f"Error al actualizar el usuario: {err_msg}", color="danger")
-            return (
-                alerta, True, no_update,
-                no_update, no_update, no_update, no_update, no_update, no_update
-            )
-
-    except Exception as e:
-        alerta = dbc.Alert(f"Error de conexión: {str(e)}", color="danger")
-        return (
-            alerta, True, no_update,
-            no_update, no_update, no_update, no_update, no_update, no_update
-        )
-    
-
-@app.callback(
-    Output("modal-edit-usuario", "is_open", allow_duplicate=True),
-    Input("modal-edit-usuario", "is_open"),
-    prevent_initial_call=True
-)
-def debug_modal_state(is_open):
 
     triggered = ctx.triggered[0]["prop_id"] if ctx.triggered else "N/A"
     print(f"Estado actual del modal: {is_open}, Triggered by: {triggered}")

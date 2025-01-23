@@ -23,7 +23,7 @@ def ensure_tables_exist(connection):
             CREATE TABLE IF NOT EXISTS personas (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 persona VARCHAR(255) NOT NULL,
-                encoding VARCHAR(255) NOT NULL,
+                encoding TEXT NOT NULL,
                 estado CHAR(1) DEFAULT 'A',
                 fecha DATETIME DEFAULT CURRENT_TIMESTAMP
             )
