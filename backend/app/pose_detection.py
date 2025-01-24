@@ -200,7 +200,7 @@ def detectar_actividad(keypoints):
 # ---------------------------------------------------
 # 4. Función principal de procesar cada frame
 # ---------------------------------------------------
-def procesar_frame(frame, prev_time):
+def procesar_frame(frame, prev_time, track_id_to_name):
     """
     1. Aplica el modelo YOLO para detectar keypoints de cada persona en el frame.
     2. Determina la actividad y dibuja la etiqueta correspondiente en la imagen.

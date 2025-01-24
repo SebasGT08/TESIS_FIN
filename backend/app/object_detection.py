@@ -11,7 +11,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model.to(device)
 model.conf = 0.25  # Ajusta el umbral de confianza
 
-def procesar_objetos(frame, prev_time):
+def procesar_objetos(frame, prev_time, track_id_to_name):
     """
     Procesa un frame para detectar objetos y los anota.
     """

@@ -15,10 +15,10 @@ def run_fastapi(pose_queue, object_queue, face_queue, event_queue):
     set_queues(pose_queue, object_queue, face_queue, event_queue)
     uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
 
-def run_camera_handler(pose_queue, object_queue, face_queue, event_queue, detection_history):
+def run_camera_handler(pose_queue, object_queue, face_queue, event_queue, detection_history, track_id_to_name):
     # Asigna las colas compartidas al módulo de Camera Handler
     from .camera_handler import set_queues, capturar_frames
-    set_queues(pose_queue, object_queue, face_queue, event_queue, detection_history)
+    set_queues(pose_queue, object_queue, face_queue, event_queue, detection_history, track_id_to_name)
     capturar_frames()
 
 if __name__ == "__main__":
@@ -34,6 +34,7 @@ if __name__ == "__main__":
 
     # Diccionario compartido para el historial de detecciones
     detection_history = manager.dict()
+    track_id_to_name = manager.dict()  # Diccionario compartido para track_id -> nombre
 
     # Iniciar procesos
     flask_process = multiprocessing.Process(target=run_flask)
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         target=run_fastapi, args=(pose_queue, object_queue, face_queue, event_queue)
     )
     detection_process = multiprocessing.Process(
-        target=run_camera_handler, args=(pose_queue, object_queue, face_queue, event_queue, detection_history)
+        target=run_camera_handler, args=(pose_queue, object_queue, face_queue, event_queue, detection_history,track_id_to_name)
     )
 
     flask_process.start()
