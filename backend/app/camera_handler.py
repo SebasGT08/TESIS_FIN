@@ -14,22 +14,25 @@ event_queue = None
 
 # Historial de detecciones recientes (compartido)
 detection_history = None
+track_id_to_name = None
 
 # Conexión persistente a la base de datos
 db_connection = None
 db_cursor = None
 
 
-def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue, p_detection_history):
+def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue, p_detection_history,p_track_id_to_name):
     """
     Configura las colas compartidas y el historial de detecciones.
     """
-    global pose_queue, object_queue, face_queue, event_queue, detection_history
+    global pose_queue, object_queue, face_queue, event_queue, detection_history, track_id_to_name
     pose_queue = p_pose_queue
     object_queue = p_object_queue
     face_queue = p_face_queue
     event_queue = p_event_queue
     detection_history = p_detection_history
+    track_id_to_name = p_track_id_to_name
+
 
 
 def init_db_connection():
@@ -180,7 +183,7 @@ def capturar_frames():
                 (procesar_objetos, object_queue, "objetos"),
                 (procesar_rostros, face_queue, "rostros")
             ]:
-                processed_frame, eventos, prev_time = procesar(frame, prev_time)
+                processed_frame, eventos, prev_time = procesar(frame, prev_time,track_id_to_name)
                 if not queue.full() and processed_frame is not None:
                     queue.put(processed_frame)
                 if eventos:
