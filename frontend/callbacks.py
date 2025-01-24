@@ -8,6 +8,8 @@ import dash
 import dash
 ctx = dash.callback_context
 from datetime import datetime
+from collections import defaultdict
+import plotly.graph_objects as go
 
 # Importa MATCH, ALL para pattern matching
 from dash.dependencies import MATCH, ALL
@@ -112,7 +114,6 @@ def render_tab_content(active_tab):
         return html.Div(
             style={'padding': '20px'},
             children=[
-                dcc.Store(id='records-store', data=records),
 
                 dbc.Row(
                     [
@@ -602,24 +603,29 @@ def toggle_activity_modal(n_clicks_open, is_open):
 # ----------------------------------------------------------------------------
 # 13) Actualizar logs de actividad (Cámaras)
 # ----------------------------------------------------------------------------
+
 @app.callback(
     [
         Output("modal-activity-logs", "children"),
         Output("modal-activity-graph", "figure")
     ],
-    Input("interval", "n_intervals"),
+    Input("interval-2000", "n_intervals"),  # Asegúrate de que el ID coincida con el layout
     State("tabs", "active_tab")
 )
-def update_activity_logs(_, active_tab):
+def update_activity_logs(n_intervals, active_tab):
     global last_seen_detection_id
 
+    print(f"Callback `update_activity_logs` activado. Interval: {n_intervals}, Active Tab: {active_tab}")
+
     if active_tab != "camaras":
+        print("No está en la pestaña 'camaras'. No se actualizará.")
         return no_update, no_update
 
     try:
         response = requests.get("http://127.0.0.1:5000/get_detections")
         if response.status_code == 200:
             detections = response.json()
+            print(f"Detections recibidas: {detections}")
         else:
             print("Error al obtener detecciones del backend. Estado:", response.status_code)
             return html.Div("Error al obtener detecciones del backend.", style={'color': 'red'}), {}
@@ -628,16 +634,24 @@ def update_activity_logs(_, active_tab):
         return html.Div(f"Error de conexión: {e}", style={'color': 'red'}), {}
 
     if not detections:
+        print("No hay detecciones registradas.")
         return html.Div("No hay detecciones registradas."), {}
 
     # Verificar si hay nuevas detecciones
-    current_max_id = max(det["id"] for det in detections)
+    try:
+        current_max_id = max(det["id"] for det in detections)
+        print(f"current_max_id: {current_max_id}, last_seen_detection_id: {last_seen_detection_id}")
+    except Exception as e:
+        print(f"Error al obtener el máximo ID: {e}")
+        return html.Div("Error al procesar detecciones.", style={'color': 'red'}), {}
+
     if current_max_id <= last_seen_detection_id:
+        print("No hay nuevas detecciones. Prevent Update.")
         raise exceptions.PreventUpdate
     else:
         last_seen_detection_id = current_max_id
+        print(f"Actualizando last_seen_detection_id a: {last_seen_detection_id}")
 
-    from collections import defaultdict
     detections_by_type = defaultdict(list)
     for det in detections:
         detections_by_type[det["tipo"]].append(det)
@@ -688,11 +702,13 @@ def update_activity_logs(_, active_tab):
         logs_combined.append(container_for_type)
 
     # Generar gráfica de conteo de detecciones
-    import plotly.graph_objects as go
     x_values = list(detections_by_type.keys())
     y_values = [len(detections_by_type[t]) for t in x_values]
 
+    print(f"x_values: {x_values}, y_values: {y_values}")
+
     if not x_values or not y_values:
+        print("No hay datos para la gráfica.")
         return html.Div("No hay datos para mostrar."), {}
 
     fig = go.Figure([go.Bar(x=x_values, y=y_values)])
@@ -707,103 +723,12 @@ def update_activity_logs(_, active_tab):
         height=400
     )
 
+    print("Generando logs_combined y figura de la gráfica.")
     return logs_combined, fig
-
-
-
 
 # ----------------------------------------------------------------------------
 # 14) Único callback para EDITAR y ELIMINAR => "records-table" con allow_duplicate
 # ----------------------------------------------------------------------------
-@app.callback(
-    [
-        Output("records-store", "data", allow_duplicate=True),  # <--- aquí
-        Output("modal-edit-persona", "is_open"),
-        Output("edit-persona-id", "value"),
-        Output("edit-persona-name", "value"),
-        Output("edit-persona-estado", "value"),
-    ],
-    [
-        Input({'type': 'edit-record','index':ALL}, 'n_clicks'),
-        Input("btn-update-persona", "n_clicks")
-    ],
-    [
-        State({'type':'edit-record','index':ALL}, 'id'),
-        State("edit-persona-id", "value"),
-        State("edit-persona-name", "value"),
-        State("edit-persona-estado","value"),
-    ],
-    prevent_initial_call=True
-)
-def handle_persona_edit(edit_clicks_list, update_click,
-                        edit_ids,
-                        current_id_editing,
-                        current_name_editing,
-                        current_estado_editing):
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        raise dash.exceptions.PreventUpdate
-
-    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    print(f"Triggered ID => {triggered_id}")
-
-    is_modal_open = False
-    new_edit_id = ""
-    new_edit_name = ""
-    new_edit_estado = ""
-    message = ""
-
-    # 1) Abrir modal (botón "Editar")
-    if "edit-record" in triggered_id:
-        for i, n_clicks in enumerate(edit_clicks_list):
-            if n_clicks and edit_ids[i] is not None:
-                persona_str_id = edit_ids[i]['index']
-                print(f"Abrir modal para persona ID: {persona_str_id}")
-                if persona_str_id:
-                    persona_id = int(persona_str_id)
-                    response = requests.get(f"http://127.0.0.1:5000/get_one_persona/{persona_id}")
-                    if response.status_code == 200:
-                        data = response.json()
-                        new_edit_id = str(data["id"])
-                        new_edit_name = data["persona"]
-                        new_edit_estado = data["estado"]
-                        is_modal_open = True
-                        print("Datos recibidos correctamente del backend.")
-                    else:
-                        print("Error al obtener datos de la persona del backend.")
-                        message = dbc.Alert("Error al obtener datos.", color="danger")
-                break
-
-    # 2) Guardar cambios (botón "Guardar")
-    elif triggered_id == "btn-update-persona":
-        if current_id_editing and current_name_editing and current_estado_editing:
-            print(f"Guardando => ID: {current_id_editing}, Nombre: {current_name_editing}, Estado: {current_estado_editing}")
-            try:
-                persona_id = int(current_id_editing)
-                payload = {
-                    "id": persona_id,
-                    "persona": current_name_editing,
-                    "estado": current_estado_editing
-                }
-                response = requests.put("http://127.0.0.1:5000/update_persona", json=payload)
-                if response.status_code == 200:
-                    message = dbc.Alert("Persona actualizada correctamente.", color="success")
-                    is_modal_open = False
-                else:
-                    message = dbc.Alert(f"Error al actualizar: {response.json().get('error', 'Error desconocido')}", color="danger")
-            except ValueError:
-                message = dbc.Alert("ID no válido.", color="danger")
-        else:
-            message = dbc.Alert("Todos los campos son obligatorios.", color="warning")
-
-    # 3) Refrescar la lista de personas después de actualizar
-    records_response = requests.get("http://127.0.0.1:5000/get_records")
-    if records_response.status_code == 200:
-        records = records_response.json()
-        return records, is_modal_open, new_edit_id, new_edit_name, new_edit_estado
-    else:
-        return dash.no_update, is_modal_open, new_edit_id, new_edit_name, new_edit_estado
-
 
 @app.callback(
     Output("records-table", "children"),
@@ -956,7 +881,7 @@ def format_datetime(fecha_str):
 last_seen_detection_id = 0
 @app.callback(
     Output("alert-container", "children"),
-    Input("interval", "n_intervals"),
+    Input("interval-5000", "n_intervals"),
     State("alert-container", "children"),
     prevent_initial_call=True
 )
@@ -1009,3 +934,120 @@ def display_new_alerts(n_intervals, current_alerts):
         return new_alert_items
     else:
         return new_alert_items + current_alerts
+    
+@app.callback(
+    [
+        Output("modal-edit-persona", "is_open"),
+        Output("edit-persona-id", "value"),
+        Output("edit-persona-name", "value"),
+        Output("edit-persona-estado", "value"),
+        Output("records-store", "data"),
+    ],
+    [
+        Input({'type': 'edit-record', 'index': ALL}, 'n_clicks'),
+        Input("btn-update-persona", "n_clicks"),
+    ],
+    [
+        State({'type': 'edit-record', 'index': ALL}, 'id'),
+        State("edit-persona-id", "value"),
+        State("edit-persona-name", "value"),
+        State("edit-persona-estado", "value"),
+    ],
+    prevent_initial_call=True
+)
+def handle_persona_edit(edit_clicks_list, update_click,
+                        edit_ids,
+                        current_id_editing,
+                        current_name_editing,
+                        current_estado_editing):
+
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    is_modal_open = False
+    new_edit_id, new_edit_name, new_edit_estado = "", "", ""
+
+    # Abrir modal de edición
+    if "edit-record" in triggered_id:
+        for i, n_clicks in enumerate(edit_clicks_list):
+            if n_clicks and edit_ids[i] is not None:
+                persona_id = int(edit_ids[i]['index'])
+                response = requests.get(f"http://127.0.0.1:5000/get_one_persona/{persona_id}")
+                if response.status_code == 200:
+                    data = response.json()
+                    new_edit_id = str(data["id"])
+                    new_edit_name = data["persona"]
+                    new_edit_estado = data["estado"]
+                    is_modal_open = True
+        return is_modal_open, new_edit_id, new_edit_name, new_edit_estado, dash.no_update
+
+    # Guardar cambios
+    elif triggered_id == "btn-update-persona":
+        if current_id_editing and current_name_editing and current_estado_editing:
+            persona_id = int(current_id_editing)
+            payload = {
+                "id": persona_id,
+                "persona": current_name_editing,
+                "estado": current_estado_editing
+            }
+            response = requests.put("http://127.0.0.1:5000/update_persona", json=payload)
+            if response.status_code == 200:
+                is_modal_open = False
+                records_response = requests.get("http://127.0.0.1:5000/get_records")
+                if records_response.status_code == 200:
+                    records = records_response.json()
+                    return is_modal_open, "", "", "", records
+    return dash.no_update, new_edit_id, new_edit_name, new_edit_estado, dash.no_update
+
+@app.callback(
+    [
+        Output("delete-confirm-modal", "is_open"),
+        Output("delete-message", "children"),
+        Output("delete-persona-id", "value"),
+        Output("records-store", "data", allow_duplicate=True),
+    ],
+    [
+        Input({'type': 'delete-record', 'index': ALL}, 'n_clicks'),
+        Input("btn-confirm-delete", "n_clicks"),
+    ],
+    [
+        State({'type': 'delete-record', 'index': ALL}, 'id'),
+        State("delete-persona-id", "value"),
+    ],
+    prevent_initial_call=True
+)
+def handle_persona_delete(delete_clicks_list, confirm_delete_click, delete_ids, delete_id):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    is_delete_modal_open = False
+    delete_message = ""
+
+    if "delete-record" in triggered_id:
+        for i, n_clicks in enumerate(delete_clicks_list):
+            if n_clicks and delete_ids[i] is not None:
+                delete_id = delete_ids[i]['index']
+                is_delete_modal_open = True
+                return is_delete_modal_open, "", delete_id, dash.no_update
+
+    elif triggered_id == "btn-confirm-delete":
+        if delete_id:
+            try:
+                response = requests.delete("http://127.0.0.1:5000/delete_persona", json={"id": int(delete_id)})
+                if response.status_code == 200:
+                    delete_message = dbc.Alert("Persona eliminada correctamente.", color="success")
+                    is_delete_modal_open = False
+                    records_response = requests.get("http://127.0.0.1:5000/get_records")
+                    if records_response.status_code == 200:
+                        records = records_response.json()
+                        return is_delete_modal_open, delete_message, "", records
+                else:
+                    delete_message = dbc.Alert("Error al eliminar la persona.", color="danger")
+            except ValueError:
+                delete_message = dbc.Alert("ID no válido.", color="danger")
+
+    return dash.no_update, delete_message, delete_id, dash.no_update

@@ -198,7 +198,14 @@ def create_table_body(records):
                         color="warning",
                         n_clicks=0
                     )
-                ),
+                    ), html.Td(
+                        dbc.Button(
+                            "Eliminar",
+                            id={'type': 'delete-record', 'index': str(record["id"])},
+                            color="danger",
+                            n_clicks=0
+                        )
+                    ),
             ])
         )
     return html.Tbody(rows)

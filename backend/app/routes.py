@@ -342,20 +342,36 @@ def register_routes(app):
     @app.route('/delete_persona', methods=['DELETE'])
     def delete_persona():
         data = request.json
-        print("Data recibido en /delete_persona =>", data)  # Depuración en Flask
+        print("Data recibido en /delete_persona =>", data)  # Depuración
 
         if not data or 'id' not in data:
             return jsonify({"error": "ID requerido"}), 400
 
         persona_id = data['id']
-        print("ID a eliminar =>", persona_id)  # Depuración en Flask
+        print(f"Intentando eliminar la persona con ID: {persona_id}")  # Depuración
 
-        # Conectar DB, hacer DELETE FROM personas WHERE id = persona_id
-        # ...
-        return jsonify({"message": "Persona eliminada exitosamente"}), 200
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
+            # Verificar si la persona existe antes de eliminar
+            cursor.execute("SELECT * FROM personas WHERE id = %s", (persona_id,))
+            persona = cursor.fetchone()
+            if not persona:
+                return jsonify({"error": "Persona no encontrada"}), 404
 
-  
+            # Eliminar persona
+            cursor.execute("DELETE FROM personas WHERE id = %s", (persona_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            print(f"Persona con ID {persona_id} eliminada exitosamente.")
+            return jsonify({"message": "Persona eliminada exitosamente"}), 200
+        except Exception as e:
+            print("Error al eliminar:", str(e))
+            return jsonify({"error": str(e)}), 500
+    
 
     @app.route('/update_persona', methods=['PUT'])
     def update_persona():
