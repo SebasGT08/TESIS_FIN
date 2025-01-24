@@ -27,19 +27,43 @@ login_layout = dbc.Container(
     fluid=True,
     style={'height': '100vh', 'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'}
 )
+delete_modal = dbc.Modal(
+    [
+        dbc.ModalHeader("Confirmar eliminación"),
+        dbc.ModalBody("¿Estás seguro de que deseas eliminar esta persona?"),
+        dbc.ModalFooter(
+            [
+                dbc.Button("Cancelar", id="btn-cancel-delete", className="ml-auto", n_clicks=0),
+                dbc.Button("Confirmar", id="btn-confirm-delete", color="danger", n_clicks=0)
+            ]
+        ),
+    ],
+    id="delete-confirm-modal",
+    is_open=False,
+)
 
+delete_controls = html.Div([
+    html.Div(id="delete-message"),
+    dcc.Input(id="delete-persona-id", type="hidden"),
+])
 # Layout principal (app)
 app_layout = dbc.Container(
     [
         html.H1("Registro Facial", style={'textAlign': 'center', 'color': 'white', 'marginTop': '20px'}),
-        html.Div(id="alert-container", style={
+        
+       html.Div(id="alert-container", style={
             "position": "fixed",
             "top": "20px",
             "right": "20px",
             "width": "400px",
-            "zIndex": 9999
+            "zIndex": 9999,
+            "display": "flex",
+            "flexDirection": "column-reverse"  # Asegura que las nuevas alertas se agreguen abajo
         }),
-        
+        dcc.Store(id='records-store', data=[]),
+
+        dcc.Interval(id="interval-5000", interval=5000, n_intervals=0),
+
         dbc.Row(
             [
                 dbc.Col(
@@ -70,9 +94,11 @@ app_layout = dbc.Container(
             style={'backgroundColor': '#2C2C2C', 'height': '100%'}
         ),
         # Intervalo para refrescar datos
-        dcc.Interval(id="interval", interval=2000),
+        dcc.Interval(id="interval-2000", interval=2000),
         dcc.Store(id='users-update-store', data=0),
         html.Div(id='dummy-output', style={'display': 'none'}),
+        delete_modal,
+        delete_controls
     ],
     fluid=True,
     style={'backgroundColor': '#2C2C2C', 'height': '100vh', 'padding': '20px'}
@@ -147,3 +173,22 @@ camaras_layout = html.Div(
     ]
 )
 
+delete_modal = dbc.Modal(
+    [
+        dbc.ModalHeader("Confirmar eliminación"),
+        dbc.ModalBody("¿Estás seguro de que deseas eliminar esta persona?"),
+        dbc.ModalFooter(
+            [
+                dbc.Button("Cancelar", id="btn-cancel-delete", className="ml-auto", n_clicks=0),
+                dbc.Button("Confirmar", id="btn-confirm-delete", color="danger", n_clicks=0)
+            ]
+        ),
+    ],
+    id="delete-confirm-modal",
+    is_open=False,
+)
+
+delete_controls = html.Div([
+    html.Div(id="delete-message"),
+    dcc.Input(id="delete-persona-id", type="hidden"),
+])
