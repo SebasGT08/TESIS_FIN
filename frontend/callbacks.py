@@ -553,7 +553,7 @@ def display_images(content, filename):
         Output('output-message', 'children'),
         Output('input-name', 'value'),
         Output('upload-image', 'contents'),
-Output('records-store', 'children', allow_duplicate=True)
+        Output('records-table', 'children', allow_duplicate=True)  # Actualiza la tabla
     ],
     Input('save-button', 'n_clicks'),
     [State('upload-image', 'contents'), State('input-name', 'value'), State('tabs', 'active_tab')],
@@ -575,8 +575,9 @@ def enviar_datos_backend(n_clicks, image_content, name, active_tab):
                 records_response = requests.get("http://127.0.0.1:5000/get_records")
                 if records_response.status_code == 200:
                     records = records_response.json()
+                    records_table = build_records_table(records)  # Construir la tabla nuevamente
                     alert = dbc.Alert("Registro exitoso.", color="success", duration=3000)
-                    return alert, "", None, records
+                    return alert, "", None, records_table
                 else:
                     return dbc.Alert("Error al obtener registros.", color="danger"), no_update, no_update, no_update
             else:
