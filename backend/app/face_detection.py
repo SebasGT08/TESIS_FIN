@@ -11,13 +11,12 @@ app_insightface = FaceAnalysis(providers=["CUDAExecutionProvider", "CPUExecution
 app_insightface.prepare(ctx_id=0, det_size=(640, 640))  # ctx_id=0 para usar GPU
 
 # Inicialización del tracker (DeepSORT)
-tracker = DeepSort(max_age=30, nn_budget=10)
+tracker = DeepSort(max_age=30, nn_budget=10, embedder_gpu=True)
 
 # Variables globales para encodings
 _encodings_loaded = False
 known_encodings = []
 known_names = []
-
 
 def initialize_encodings():
     """
@@ -47,28 +46,22 @@ def initialize_encodings():
         _encodings_loaded = True
         print(f"[INFO] Encodings cargados: {known_names}")
 
-
 # Cargar los encodings al importar el módulo
 initialize_encodings()
-
 
 def procesar_rostros(frame, prev_time, track_id_to_name):
     """
     Detecta y procesa rostros en un frame usando InsightFace, realiza el seguimiento con DeepSORT y mantiene la identificación.
     """
-
     global known_encodings, known_names
 
     # Detectar rostros y obtener embeddings
-    print("[DEBUG] Detectando rostros en el frame...")
     faces = app_insightface.get(frame)
-    print(f"[DEBUG] Rostros detectados: {len(faces)}")
 
     detecciones = []  # Lista de detecciones para el tracker
     eventos = []  # Lista de eventos solo para notificar desconocidos
 
     for i, face in enumerate(faces):
-        print(f"[DEBUG] Procesando rostro {i + 1} de {len(faces)}...")
         # Coordenadas del bounding box
         x1, y1, x2, y2 = map(int, face.bbox)
         width = x2 - x1
@@ -84,14 +77,9 @@ def procesar_rostros(frame, prev_time, track_id_to_name):
         if known_encodings:
             distances = np.linalg.norm(known_encodings - encoding, axis=1)
             min_distance_index = np.argmin(distances)
-            print(f"[DEBUG] Distancia mínima: {distances[min_distance_index]}")
 
             if distances[min_distance_index] < 0.9:  # Umbral de similitud
                 name = known_names[min_distance_index]
-                print(f"[DEBUG] Rostro reconocido como: {name}")
-            else:
-                print(f"[DEBUG] Rostro no reconocido (distancia mínima: {distances[min_distance_index]})")
-                eventos.append({"etiqueta": "Desconocido", "confianza": 1.0})
 
         # Validación de formato
         confianza = float(1.0)  # Asegurar que confianza sea flotante
@@ -99,52 +87,42 @@ def procesar_rostros(frame, prev_time, track_id_to_name):
 
         # Agregar la detección al formato esperado por DeepSORT
         deteccion = (detection_bbox, confianza, name)
-        print(f"[DEBUG] Detección preparada: {deteccion}")
         detecciones.append(deteccion)
 
     # Actualizar el tracker con las detecciones
     try:
-        print("[DEBUG] Actualizando tracker con las detecciones...")
-        print(f"[DEBUG] Detecciones enviadas al tracker: {detecciones}")
         tracks = tracker.update_tracks(detecciones, frame=frame)
-        print(f"[DEBUG] Tracks actualizados: {len(tracks)}")
     except Exception as e:
-        print(f"[ERROR] Error durante la actualización del tracker: {e}")
-        print(f"[DEBUG] Input de detecciones que causaron el error: {detecciones}")
         return frame, eventos, prev_time
 
     # Dibujar los resultados del tracker en el frame
     for track in tracks:
         if not track.is_confirmed():
-            print(f"[DEBUG] Track no confirmado, ignorado (ID: {track.track_id})")
             continue
 
         track_id = track.track_id  # ID único del tracker
         det_class = track.get_det_class()  # Clase detectada en esta iteración
-        print(f"[DEBUG] Track ID: {track_id}, Etiqueta obtenida del tracker: {det_class}")
 
         # Si el nombre actual es "Desconocido" pero se detecta un nombre conocido, actualiza el diccionario
         if track_id in track_id_to_name and track_id_to_name[track_id] == "Desconocido" and det_class != "Desconocido":
             track_id_to_name[track_id] = det_class
-            print(f"[DEBUG] Actualizando nombre para ID {track_id}: {det_class}")
         elif track_id not in track_id_to_name:
             # Si el track_id no está en el diccionario, lo agregamos
             track_id_to_name[track_id] = det_class
-            print(f"[DEBUG] Asignando nuevo nombre para ID {track_id}: {det_class}")
 
         # Obtener el nombre final
         label = track_id_to_name.get(track_id, "Desconocido")
-        print(f"[DEBUG] Nombre final asignado para track_id {track_id}: {label}")
+
+        # Agregar a eventos si sigue siendo desconocido
+        if label == "Desconocido":
+            eventos.append({"etiqueta": "Desconocido", "confianza": 1.0})
 
         # Dibujar en el frame
         bbox = track.to_tlbr()
         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 2)
         cv2.putText(frame, f"{label} (ID: {track_id})", (int(bbox[0]), int(bbox[1] - 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-    # Mostrar contenido del diccionario de track_id_to_name
-    print(f"[DEBUG] Contenido actual de track_id_to_name: {track_id_to_name}")
-
+        
     # Calcular y mostrar FPS
     current_time = time.time()
     fps = 1 / (current_time - prev_time)
@@ -152,5 +130,3 @@ def procesar_rostros(frame, prev_time, track_id_to_name):
     cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     return frame, eventos, prev_time
-
-

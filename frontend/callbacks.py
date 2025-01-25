@@ -19,16 +19,9 @@ from app import app
 from layouts import login_layout, app_layout, layout_with_url, camaras_layout
 from utils import build_users_table, build_records_table
 
-# Variables globales (opcionales)
-latest_frame = None
-activity_logs_facial = []
-activity_logs_objetos = []
-activity_logs_poses = []
-detection_count_facial = 0
-detection_count_objetos = 0
-detection_count_poses = 0
+from dash_extensions import WebSocket  # Importar WebSocket para escuchar eventos en tiempo real
+import json  # Para decodificar mensajes JSON del WebSocket
 
-last_seen_detection_id = 0  # Para detecciones en la tab "cámaras"
 
 # ----------------------------------------------------------------------------
 # 1) Layout según la ruta (login o principal)
@@ -606,81 +599,81 @@ def toggle_activity_modal(n_clicks_open, is_open):
 # ----------------------------------------------------------------------------
 
 @app.callback(
-    [
-        Output("modal-activity-logs", "children"),
-        Output("modal-activity-graph", "figure")
-    ],
-    Input("interval-2000", "n_intervals"),  # Asegúrate de que el ID coincida con el layout
-    State("tabs", "active_tab")
+    [Output("alert-container", "children"), Output("alerts-store", "data")],  # Actualiza visual y datos
+    Input("ws", "message"),  # Escucha mensajes del WebSocket
+    State("alerts-store", "data"),  # Estado actual de las alertas almacenadas
 )
-def update_activity_logs(n_intervals, active_tab):
-    global last_seen_detection_id
+def update_alerts(message, stored_alerts):
+    if not message:
+        print("No se recibió ningún mensaje del WebSocket.")
+        return no_update, stored_alerts
 
-    print(f"Callback `update_activity_logs` activado. Interval: {n_intervals}, Active Tab: {active_tab}")
-
-    if active_tab != "camaras":
-        print("No está en la pestaña 'camaras'. No se actualizará.")
-        return no_update, no_update
-
+    # Procesar el mensaje recibido
     try:
-        response = requests.get("http://127.0.0.1:5000/get_detections")
-        if response.status_code == 200:
-            detections = response.json()
-            print(f"Detections recibidas: {detections}")
-        else:
-            print("Error al obtener detecciones del backend. Estado:", response.status_code)
-            return html.Div("Error al obtener detecciones del backend.", style={'color': 'red'}), {}
+        data = json.loads(message["data"])  # Decodifica el mensaje JSON
+        print(f"Mensaje WebSocket recibido: {data}")
     except Exception as e:
-        print(f"Error de conexión con el backend: {e}")
-        return html.Div(f"Error de conexión: {e}", style={'color': 'red'}), {}
+        print(f"Error procesando mensaje WebSocket: {e}")
+        return no_update, stored_alerts
 
-    if not detections:
-        print("No hay detecciones registradas.")
-        return html.Div("No hay detecciones registradas."), {}
+    # Crear alerta visual
+    formatted_date = format_datetime(data["fecha"])
+    alert = dbc.Alert(
+        [
+            html.H5("⚠ Alerta", className="alert-heading"),
+            html.P(f"Motivo: {data['etiqueta']}", style={"fontWeight": "bold"}),
+            html.P(f"{formatted_date}"),
+        ],
+        color="danger" if data["tipo"] == "objetos" else "warning",
+        dismissable=True,
+        duration=5000,
+        style={
+            "marginBottom": "10px",
+            "borderLeft": "5px solid red" if data["tipo"] == "objetos" else "orange",
+            "boxShadow": "0px 0px 10px rgba(255,0,0,0.5)" if data["tipo"] == "objetos" else "rgba(255,165,0,0.5)"
+        }
+    )
 
-    # Verificar si hay nuevas detecciones
-    try:
-        current_max_id = max(det["id"] for det in detections)
-        print(f"current_max_id: {current_max_id}, last_seen_detection_id: {last_seen_detection_id}")
-    except Exception as e:
-        print(f"Error al obtener el máximo ID: {e}")
-        return html.Div("Error al procesar detecciones.", style={'color': 'red'}), {}
+    # Actualizar alertas almacenadas
+    if stored_alerts is None:
+        stored_alerts = []
+    stored_alerts.append(data)
 
-    if current_max_id <= last_seen_detection_id:
-        print("No hay nuevas detecciones. Prevent Update.")
-        raise exceptions.PreventUpdate
-    else:
-        last_seen_detection_id = current_max_id
-        print(f"Actualizando last_seen_detection_id a: {last_seen_detection_id}")
+    # Retornar la alerta más reciente y todas las alertas almacenadas
+    return [alert], stored_alerts
 
-    detections_by_type = defaultdict(list)
-    for det in detections:
-        detections_by_type[det["tipo"]].append(det)
 
-    # Función para formatear fecha correctamente
-    def format_datetime(fecha_str):
-        try:
-            dt = parser.parse(fecha_str)
-            return dt.strftime('%d/%m/%Y %I:%M %p')
-        except Exception as e:
-            print(f"Error al formatear fecha: {e}")
-            return fecha_str
+# ----------------------------------------------------------------------------
+# Callback para actualizar logs y gráficas al recibir eventos WebSocket - **CAMBIOS HECHOS**
+# ----------------------------------------------------------------------------
+@app.callback(
+    [Output("modal-activity-logs", "children"), Output("modal-activity-graph", "figure")],
+    Input("alerts-store", "data"),  # Usar alertas almacenadas
+)
+def update_activity_modal(alerts):
+    if not alerts:
+        return html.Div("No hay alertas recientes."), go.Figure()
 
-    # Crear la lista de logs
-    logs_combined = []
-    for tipo, lista_dets in detections_by_type.items():
-        logs_combined.append(
-            html.H5(f"Detecciones de {tipo}:", style={'fontWeight': 'bold', 'marginTop': '10px'})
-        )
-        cards_for_this_type = []
-        for det in lista_dets:
-            fecha_formateada = format_datetime(det['fecha'])
-            card = html.Div(
+    # Filtrar alertas válidas (que tengan las claves necesarias)
+    valid_alerts = [alert for alert in alerts if all(key in alert for key in ["tipo", "etiqueta", "confianza", "fecha"])]
+
+    if not valid_alerts:
+        return html.Div("No hay alertas válidas."), go.Figure()
+
+    # Crear logs
+    logs = []
+    counts = defaultdict(int)
+    for alert in valid_alerts:
+        tipo = alert["tipo"]
+        counts[tipo] += 1
+
+        logs.append(
+            html.Div(
                 [
-                    html.Div([html.Span("ID: ", style={'fontWeight': 'bold'}), html.Span(str(det['id']))]),
-                    html.Div([html.Span("Etiqueta: ", style={'fontWeight': 'bold'}), html.Span(det['etiqueta'])]),
-                    html.Div([html.Span("Confianza: ", style={'fontWeight': 'bold'}), html.Span(f"{det['confianza']:.2f}")]),
-                    html.Div([html.Span("Fecha: ", style={'fontWeight': 'bold'}), html.Span(fecha_formateada)]),
+                    html.Div([html.Span("Tipo: ", style={'fontWeight': 'bold'}), html.Span(alert["tipo"])]),
+                    html.Div([html.Span("Etiqueta: ", style={'fontWeight': 'bold'}), html.Span(alert["etiqueta"])]),
+                    html.Div([html.Span("Confianza: ", style={'fontWeight': 'bold'}), html.Span(f"{alert['confianza']:.2f}")]),
+                    html.Div([html.Span("Fecha: ", style={'fontWeight': 'bold'}), html.Span(format_datetime(alert["fecha"]))]),
                 ],
                 style={
                     'border': '1px solid #444',
@@ -690,32 +683,13 @@ def update_activity_logs(n_intervals, active_tab):
                     'backgroundColor': '#2D2D2D'
                 }
             )
-            cards_for_this_type.append(card)
-
-        container_for_type = html.Div(
-            cards_for_this_type,
-            style={
-                'maxHeight': '300px',
-                'overflowY': 'auto',
-                'marginBottom': '20px'
-            }
         )
-        logs_combined.append(container_for_type)
 
-    # Generar gráfica de conteo de detecciones
-    x_values = list(detections_by_type.keys())
-    y_values = [len(detections_by_type[t]) for t in x_values]
-
-    print(f"x_values: {x_values}, y_values: {y_values}")
-
-    if not x_values or not y_values:
-        print("No hay datos para la gráfica.")
-        return html.Div("No hay datos para mostrar."), {}
-
-    fig = go.Figure([go.Bar(x=x_values, y=y_values)])
+    # Crear gráfica
+    fig = go.Figure([go.Bar(x=list(counts.keys()), y=list(counts.values()))])
     fig.update_layout(
-        title="Conteo de Detecciones",
-        xaxis_title="Tipo de Reconocimiento",
+        title="Cantidad de Detecciones Recientes",
+        xaxis_title="Tipo de Detección",
         yaxis_title="Cantidad",
         template="plotly_dark",
         paper_bgcolor='#2C2C2C',
@@ -724,8 +698,18 @@ def update_activity_logs(n_intervals, active_tab):
         height=400
     )
 
-    print("Generando logs_combined y figura de la gráfica.")
-    return logs_combined, fig
+    return logs, fig
+
+
+# ----------------------------------------------------------------------------
+# Función para formatear fechas - **SIN CAMBIOS**
+# ----------------------------------------------------------------------------
+def format_datetime(fecha_str):
+    try:
+        dt = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime('%d/%m/%Y %I:%M %p')
+    except ValueError:
+        return fecha_str  # Devuelve la fecha original si hay un error
 
 # ----------------------------------------------------------------------------
 # 14) Único callback para EDITAR y ELIMINAR => "records-table" con allow_duplicate
@@ -878,63 +862,6 @@ def format_datetime(fecha_str):
     except ValueError:
         return fecha_str  # Devuelve la fecha original si hay un error
 
-
-last_seen_detection_id = 0
-@app.callback(
-    Output("alert-container", "children"),
-    Input("interval-5000", "n_intervals"),
-    State("alert-container", "children"),
-    prevent_initial_call=True
-)
-def display_new_alerts(n_intervals, current_alerts):
-    global last_seen_detection_id
-
-    try:
-        response = requests.get("http://127.0.0.1:5000/get_detections")
-        if response.status_code == 200:
-            detections = response.json()
-        else:
-            return dbc.Alert("Error al obtener detecciones del backend.", color="danger", dismissable=True)
-    except Exception as e:
-        return dbc.Alert(f"Error de conexión: {e}", color="danger", dismissable=True)
-
-    if not detections:
-        return no_update  # No hay alertas nuevas
-
-    # Filtrar solo las nuevas alertas
-    new_alerts = [det for det in detections if det["id"] > last_seen_detection_id]
-
-    if not new_alerts:
-        return no_update  # No hay alertas nuevas
-
-    # Actualizar el último ID visto
-    last_seen_detection_id = max(det["id"] for det in new_alerts)
-
-    # Crear nuevas alertas visuales con la fecha formateada
-    new_alert_items = []
-    for det in new_alerts:
-        formatted_date = format_datetime(det['fecha'])
-        alert = dbc.Alert(
-            [
-                html.H5("⚠ Alerta", className="alert-heading"),
-                html.P(f"Motivo: {det['etiqueta']}", style={"fontWeight": "bold"}),
-                html.P(f"{formatted_date}"),
-            ],
-            color="danger",
-            dismissable=True,
-            style={
-                "marginBottom": "10px",
-                "borderLeft": "5px solid red",
-                "boxShadow": "0px 0px 10px rgba(255,0,0,0.5)"
-            }
-        )
-        new_alert_items.append(alert)
-
-    # Si ya hay alertas previas, añadir las nuevas arriba manteniendo el historial
-    if current_alerts is None:
-        return new_alert_items
-    else:
-        return new_alert_items + current_alerts
     
 @app.callback(
     [

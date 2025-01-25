@@ -3,6 +3,8 @@ import dash_bootstrap_components as dbc
 from dash import html, dcc
 from dvr_iframe import dvr_html_content
 from utils import build_records_table  # Si quieres usar algo de utils aquí
+from dash_extensions import WebSocket
+
 # Layout de Login
 login_layout = dbc.Container(
     [
@@ -49,9 +51,10 @@ delete_controls = html.Div([
 # Layout principal (app)
 app_layout = dbc.Container(
     [
-        html.H1("Registro Facial", style={'textAlign': 'center', 'color': 'white', 'marginTop': '20px'}),
-        
-       html.Div(id="alert-container", style={
+        html.H1("App Deteccion", style={'textAlign': 'center', 'color': 'white', 'marginTop': '20px'}),
+        WebSocket(id="ws", url="ws://localhost:8000/ws/events"),
+        dcc.Store(id="alerts-store", data=[]),  # Almacena alertas recientes en la sesión
+        html.Div(id="alert-container", style={
             "position": "fixed",
             "top": "20px",
             "right": "20px",
@@ -61,9 +64,6 @@ app_layout = dbc.Container(
             "flexDirection": "column-reverse"  # Asegura que las nuevas alertas se agreguen abajo
         }),
         dcc.Store(id='records-store', data=[]),
-
-        dcc.Interval(id="interval-5000", interval=5000, n_intervals=0),
-
         dbc.Row(
             [
                 dbc.Col(
@@ -93,8 +93,7 @@ app_layout = dbc.Container(
             id="tab-content",
             style={'backgroundColor': '#2C2C2C', 'height': '100%'}
         ),
-        # Intervalo para refrescar datos
-        dcc.Interval(id="interval-2000", interval=2000),
+        # Store para manejar actualizaciones
         dcc.Store(id='users-update-store', data=0),
         html.Div(id='dummy-output', style={'display': 'none'}),
         delete_modal,
@@ -128,7 +127,7 @@ camaras_layout = html.Div(
             style={"width": "100%", "height": "70vh", "border": "none"},
         ),
         dbc.Button(
-            "Ver Actividad",
+            "Ver Actividad Reciente",
             id="open-activity-modal",
             color="info",
             style={'fontSize': '18px', 'margin': 'auto', 'display': 'block', 'marginTop': '20px'}
@@ -136,7 +135,7 @@ camaras_layout = html.Div(
         dbc.Modal(
             [
                 dbc.ModalHeader(
-                    dbc.ModalTitle("Registro de Actividad", style={'fontSize': '24px'}),
+                    dbc.ModalTitle("Registro de Actividad Reciente", style={'fontSize': '24px'}),
                     close_button=True
                 ),
                 dbc.ModalBody(

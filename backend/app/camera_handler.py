@@ -63,7 +63,7 @@ def close_db_connection():
     except Exception as e:
         print(f"[ERROR] No se pudo cerrar la conexión a la base de datos: {e}")
 
-def guardar_eventos(eventos, tipo, tiempo_persistencia=30, min_ocurrencias=60, tiempo_maximo_sin_detectar=3):
+def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, tiempo_maximo_sin_detectar=3):
     """
     Guarda eventos en la base de datos y en la cola solo si cumplen los criterios:
     1. No se han guardado en los últimos 'tiempo_persistencia' segundos.
