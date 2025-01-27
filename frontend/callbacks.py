@@ -16,7 +16,7 @@ from dash.dependencies import MATCH, ALL
 
 # Importa la app y layouts
 from app import app
-from layouts import login_layout, app_layout, layout_with_url, camaras_layout
+from layouts import login_layout, app_layout, layout_with_url, camaras_layout, estadisticas_layout
 from utils import build_users_table, build_records_table
 
 from dash_extensions import WebSocket  # Importar WebSocket para escuchar eventos en tiempo real
@@ -437,6 +437,9 @@ def render_tab_content(active_tab):
 
     elif active_tab == "camaras":
         return camaras_layout
+    
+    elif active_tab == "estadisticas":
+        return estadisticas_layout
 
     return "Seleccione una pestaña para ver el contenido."
 
@@ -979,3 +982,136 @@ def handle_persona_delete(delete_clicks_list, confirm_delete_click, delete_ids, 
                 delete_message = dbc.Alert("ID no válido.", color="danger")
 
     return dash.no_update, delete_message, delete_id, dash.no_update
+
+
+
+# ----------------------------------------------------------------------------GRAFICOS
+@app.callback(
+    Output("grafico-1", "figure"),
+    [Input("btn-refrescar", "n_clicks")],
+    prevent_initial_call=True
+)
+def actualizar_grafico_poses(n_clicks):
+    # Obtener datos desde la API
+    try:
+        response = requests.get(f"http://localhost:5000/get_detections?tipo=poses")
+        if response.status_code != 200:
+            raise Exception("Error al obtener los datos")
+        detections = response.json()
+    except Exception as e:
+        print(f"Error al consultar API: {e}")
+        return {}
+
+    df = pd.DataFrame(detections)
+
+    # Formatear las fechas
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    df['fecha_formateada'] = df['fecha'].dt.strftime('%d de %B de %Y, %H:%M')
+
+    # Crear gráfico con slider de fechas
+    fig = px.scatter(
+        df,
+        x="fecha",
+        y="confianza",
+        color="etiqueta",
+        title="Detecciones de Poses",
+        labels={"fecha": "Fecha y Hora", "confianza": "Confianza", "etiqueta": "Etiqueta"},
+        hover_data={"confianza": True, "etiqueta": True, "fecha_formateada": True},
+    )
+    fig.update_traces(mode="markers+lines")
+    fig.update_layout(
+        xaxis=dict(
+            title="Fecha y Hora",
+            rangeslider=dict(visible=True),  # Slider de navegación
+        ),
+        yaxis=dict(title="Confianza"),
+    )
+    return fig
+
+import pandas as pd
+import plotly.express as px
+
+@app.callback(
+    Output("grafico-2", "figure"),
+    [Input("btn-refrescar", "n_clicks")],
+    prevent_initial_call=True
+)
+def actualizar_grafico_objetos(n_clicks):
+    # Obtener datos desde la API
+    try:
+        response = requests.get(f"http://localhost:5000/get_detections?tipo=objetos")
+        if response.status_code != 200:
+            raise Exception("Error al obtener los datos")
+        detections = response.json()
+    except Exception as e:
+        print(f"Error al consultar API: {e}")
+        return {}
+
+    df = pd.DataFrame(detections)
+
+    # Formatear las fechas
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    df['fecha_formateada'] = df['fecha'].dt.strftime('%d de %B de %Y, %H:%M')
+
+    # Crear gráfico con slider de fechas
+    fig = px.scatter(
+        df,
+        x="fecha",
+        y="confianza",
+        color="etiqueta",
+        title="Detecciones de Objetos",
+        labels={"fecha": "Fecha y Hora", "confianza": "Confianza", "etiqueta": "Etiqueta"},
+        hover_data={"confianza": True, "etiqueta": True, "fecha_formateada": True},
+    )
+    fig.update_traces(mode="markers+lines")
+    fig.update_layout(
+        xaxis=dict(
+            title="Fecha y Hora",
+            rangeslider=dict(visible=True),
+        ),
+        yaxis=dict(title="Confianza"),
+    )
+    return fig
+
+
+@app.callback(
+    Output("grafico-3", "figure"),
+    [Input("btn-refrescar", "n_clicks")],
+    prevent_initial_call=True
+)
+def actualizar_grafico_rostros(n_clicks):
+    # Obtener datos desde la API
+    try:
+        response = requests.get(f"http://localhost:5000/get_detections?tipo=rostros")
+        if response.status_code != 200:
+            raise Exception("Error al obtener los datos")
+        detections = response.json()
+    except Exception as e:
+        print(f"Error al consultar API: {e}")
+        return {}
+
+    df = pd.DataFrame(detections)
+
+    # Formatear las fechas
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    df['fecha_formateada'] = df['fecha'].dt.strftime('%d de %B de %Y, %H:%M')
+
+    # Crear gráfico con slider de fechas
+    fig = px.scatter(
+        df,
+        x="fecha",
+        y=[1] * len(df),  # Una detección por cada entrada
+        color="etiqueta",
+        title="Detecciones de Rostros",
+        labels={"fecha": "Fecha y Hora", "y": "Detección", "etiqueta": "Etiqueta"},
+        hover_data={"etiqueta": True, "fecha_formateada": True},
+    )
+    fig.update_traces(mode="markers+lines")
+    fig.update_layout(
+        xaxis=dict(
+            title="Fecha y Hora",
+            rangeslider=dict(visible=True),
+        ),
+        yaxis=dict(title="Detección"),
+    )
+    return fig

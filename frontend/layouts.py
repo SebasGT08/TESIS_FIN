@@ -71,6 +71,7 @@ app_layout = dbc.Container(
                         [
                             dbc.Tab(label="Registros", tab_id="registros"),
                             dbc.Tab(label="Cámaras", tab_id="camaras"),
+                            dbc.Tab(label="Estadísticas", tab_id="estadisticas"), 
                         ],
                         id="tabs",
                         active_tab="registros",
@@ -191,3 +192,44 @@ delete_controls = html.Div([
     html.Div(id="delete-message"),
     dcc.Input(id="delete-persona-id", type="hidden"),
 ])
+
+
+estadisticas_layout = html.Div(
+    style={'padding': '20px', 'backgroundColor': '#f9f9f9'},
+    children=[
+        html.H4(
+            "Estadísticas Generales",
+            style={'color': '#333', 'textAlign': 'center', 'fontSize': '24px', 'marginBottom': '20px'}
+        ),
+        dbc.Button(
+            "Refrescar",
+            id="btn-refrescar",
+            color="primary",
+            style={'marginBottom': '20px', 'display': 'block', 'margin': '0 auto'}
+        ),
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.H5("Detecciones de Poses", style={'textAlign': 'center', 'color': '#555'}),
+                        dcc.Graph(id="grafico-1", style={'height': '400px', 'marginBottom': '40px'}),
+                    ],
+                    style={'marginBottom': '40px'}
+                ),
+                html.Div(
+                    [
+                        html.H5("Detecciones de Objetos", style={'textAlign': 'center', 'color': '#555'}),
+                        dcc.Graph(id="grafico-2", style={'height': '400px', 'marginBottom': '40px'}),
+                    ],
+                    style={'marginBottom': '40px'}
+                ),
+                html.Div(
+                    [
+                        html.H5("Detecciones de Rostros", style={'textAlign': 'center', 'color': '#555'}),
+                        dcc.Graph(id="grafico-3", style={'height': '400px'}),
+                    ],
+                ),
+            ]
+        ),
+    ]
+)

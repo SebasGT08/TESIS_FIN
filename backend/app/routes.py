@@ -88,25 +88,6 @@ def register_routes(app):
             return jsonify({"error": str(e)}), 500
 
 
-    @app.route('/get_detections', methods=['GET'])
-    def get_detections():
-        """
-        Devuelve las detecciones de la tabla 'detecciones'.
-        """
-        try:
-            connection = get_db_connection()
-            if connection:
-                cursor = connection.cursor(dictionary=True)
-                cursor.execute("SELECT id, tipo, etiqueta, confianza, fecha FROM detecciones ORDER BY id ASC")
-                detections = cursor.fetchall()
-                cursor.close()
-                connection.close()
-                return jsonify(detections), 200
-            else:
-                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
     @app.route('/register_user', methods=['POST'])
     def register_user():
         """
@@ -450,3 +431,40 @@ def register_routes(app):
             return jsonify(row), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        
+    @app.route('/get_detections', methods=['GET'])
+    def get_detections():
+        """
+        Devuelve todas las detecciones individuales filtradas por tipo.
+        """
+        try:
+            tipo = request.args.get('tipo', None)  # Tipo de detección ('poses', 'objetos', 'rostros')
+
+            if not tipo:
+                return jsonify({"error": "Debe especificar un tipo"}), 400
+
+            connection = get_db_connection()
+            if connection:
+                cursor = connection.cursor(dictionary=True)
+
+                # Query para obtener todas las detecciones por tipo
+                query = f"""
+                    SELECT 
+                        fecha,
+                        etiqueta,
+                        confianza
+                    FROM detecciones
+                    WHERE tipo = '{tipo}'
+                    ORDER BY fecha ASC;
+                """
+                cursor.execute(query)
+                detections = cursor.fetchall()
+
+                cursor.close()
+                connection.close()
+                return jsonify(detections), 200
+            else:
+                return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
