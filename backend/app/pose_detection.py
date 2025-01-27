@@ -25,6 +25,8 @@ def calcular_angulo(a, b, c):
     a, b, c = a[:2], b[:2], c[:2]
     ba = a - b
     bc = c - b
+    if np.linalg.norm(ba) == 0 or np.linalg.norm(bc) == 0:
+        return 180  # Si el vector es nulo, devolvemos un ángulo alto por defecto
     cos_angle = np.dot(ba, bc) / ((np.linalg.norm(ba) * np.linalg.norm(bc)) + 1e-6)
     cos_angle = np.clip(cos_angle, -1.0, 1.0)
     return np.degrees(np.arccos(cos_angle))
@@ -35,37 +37,148 @@ def distancia(a, b):
     """
     return np.linalg.norm(a[:2] - b[:2])
 
-def bounding_box_persona(keypoints):
+def obtener_keypoints_validos(keypoints, indices, threshold=0.5):
     """
-    Devuelve la bounding box [xmin, ymin, xmax, ymax] basada en los keypoints.
+    Filtra y devuelve los keypoints válidos según el índice y un umbral de confianza.
     """
-    xs = keypoints[:, 0]
-    ys = keypoints[:, 1]
-    return [np.min(xs), np.min(ys), np.max(xs), np.max(ys)]
-
-def keypoint_valido(kp):
-    """
-    Verifica si un keypoint tiene coordenadas y confianza > 0.
-    Ajusta la lógica según cómo vengan tus datos.
-    """
-    if kp is None or len(kp) < 3:
-        return False
-    x, y, conf = kp
-    return conf > 0.0
-
-def get_kp(keypoints, idx):
-    """
-    Retorna el keypoint en keypoints[idx] si es válido, o None si está fuera
-    de rango o la confianza es 0.
-    """
-    if idx < 0 or idx >= len(keypoints):
-        return None
-    kp = keypoints[idx]
-    return kp if keypoint_valido(kp) else None
+    keypoints_validos = {}
+    for nombre, idx in indices.items():
+        kp = keypoints[idx] if idx < len(keypoints) else None
+        keypoints_validos[nombre] = (
+            kp if kp is not None and kp[2] >= threshold else None
+        )
+    return keypoints_validos
 
 # ---------------------------------------------------
 # 3. Lógica de detección de actividad
 # ---------------------------------------------------
+
+def calcular_confianza_pelear(keypoints_validos, tolerancia_altura=60):
+    """
+    Calcula un valor de confianza para la actividad "Pelear".
+    """
+    hombro_izq = keypoints_validos['hombro_izq']
+    hombro_der = keypoints_validos['hombro_der']
+    codo_izq = keypoints_validos['codo_izq']
+    codo_der = keypoints_validos['codo_der']
+    muneca_izq = keypoints_validos['muneca_izq']
+    muneca_der = keypoints_validos['muneca_der']
+
+    # Verificar si las munecas están a la altura de los hombros
+    muneca_izq_cerca = abs(muneca_izq[1] - hombro_izq[1]) <= tolerancia_altura
+    muneca_der_cerca = abs(muneca_der[1] - hombro_der[1]) <= tolerancia_altura
+
+    # Calcular la distancia normalizada entre las munecas y compararla con la distancia entre los hombros
+    distancia_hombros = distancia(hombro_izq, hombro_der)
+    distancia_munecas = distancia(muneca_izq, muneca_der)
+    separacion_ok = distancia_munecas <= distancia_hombros
+
+    # Verificar que las munecas están por encima de los codos
+    muneca_sobre_codo_izq = (muneca_izq[1] <= codo_izq[1] )
+    muneca_sobre_codo_der = (muneca_der[1] <= codo_der[1])
+
+    # Calcular confianza final
+    confianza = 0
+    if muneca_izq_cerca:
+        confianza += 0.225
+    if muneca_der_cerca:
+        confianza += 0.225
+    if separacion_ok:
+        confianza += 0.15
+    if muneca_sobre_codo_izq:
+        confianza += 0.2
+    if muneca_sobre_codo_der:
+        confianza += 0.2
+    
+    print('Pelear:', confianza)
+    
+    return confianza
+
+def calcular_confianza_trepar(keypoints_validos, distancia_min_piernas=20):
+    """
+    Calcula un valor de confianza para la actividad "Trepar".
+    """
+    hombro_izq = keypoints_validos['hombro_izq']
+    hombro_der = keypoints_validos['hombro_der']
+    muneca_izq = keypoints_validos['muneca_izq']
+    muneca_der = keypoints_validos['muneca_der']
+    nariz = keypoints_validos.get('nariz', None)
+    ojo_izq = keypoints_validos.get('ojo_izq', None)
+    ojo_der = keypoints_validos.get('ojo_der', None)
+    oreja_izq = keypoints_validos.get('oreja_izq', None)
+    oreja_der = keypoints_validos.get('oreja_der', None)
+    rodilla_izq = keypoints_validos.get('rodilla_izq', None)
+    rodilla_der = keypoints_validos.get('rodilla_der', None)
+
+    # Verificar altura de referencia (nariz, ojos, orejas)
+    referencias = [
+        nariz, ojo_izq, ojo_der, oreja_izq, oreja_der
+    ]
+    referencias_validas = [ref[1] for ref in referencias if ref is not None]
+
+    if not referencias_validas:
+        return 0  # No hay referencias para calcular
+
+    referencia_altura = min(referencias_validas)
+
+    # Asignar puntaje proporcional solo si las muñecas están por encima de la referencia
+    def calcular_puntaje_muneca(muneca, referencia):
+        if muneca[1] < referencia:
+            return min(3.5, 3.5 * (referencia - muneca[1]) / referencia)  # Puntaje proporcional
+        return 0
+
+    puntaje_muneca_izq = calcular_puntaje_muneca(muneca_izq, referencia_altura)
+    puntaje_muneca_der = calcular_puntaje_muneca(muneca_der, referencia_altura)
+
+    # Verificar levantamiento de piernas
+    pierna_levantada = 0
+    if rodilla_izq is not None and rodilla_der is not None:
+        if abs(rodilla_izq[1] - rodilla_der[1]) > distancia_min_piernas:
+            pierna_levantada = 3
+
+    # Calcular confianza final
+    confianza = puntaje_muneca_izq + puntaje_muneca_der + pierna_levantada
+
+    print('Trepar:', confianza)
+    return min(confianza, 1)  # Limitar la confianza máxima a 1
+
+def calcular_confianza_acostado(keypoints_validos):
+    """
+    Calcula un valor de confianza para la actividad "Acostado".
+    """
+    hombro_izq = keypoints_validos['hombro_izq']
+    hombro_der = keypoints_validos['hombro_der']
+    cadera_izq = keypoints_validos['cadera_izq']
+    cadera_der = keypoints_validos['cadera_der']
+
+    # Calcular bounding box basado en keypoints
+    x_coords = [kp[0] for kp in [hombro_izq, hombro_der, cadera_izq, cadera_der] if kp is not None]
+    y_coords = [kp[1] for kp in [hombro_izq, hombro_der, cadera_izq, cadera_der] if kp is not None]
+
+    if len(x_coords) < 4 or len(y_coords) < 4:
+        return 0  # No hay suficientes keypoints para calcular
+
+    width = max(x_coords) - min(x_coords)
+    height = max(y_coords) - min(y_coords)
+
+    # Proporción del bounding box
+    bbox_ratio = width / (height + 1e-6)
+
+    # Diferencia en altura entre hombros y caderas
+    avg_hombros_y = (hombro_izq[1] + hombro_der[1]) / 2.0
+    avg_caderas_y = (cadera_izq[1] + cadera_der[1]) / 2.0
+    diff_torso_y = abs(avg_hombros_y - avg_caderas_y)
+
+    # Determinar confianza basada en alineación y proporción
+    confianza = 0
+    if bbox_ratio > 2.0:  # Bounding box ancho
+        confianza += 0.7
+    if diff_torso_y < 20:  # Alineación horizontal
+        confianza += 0.3
+
+    print('Acostado:', confianza)
+    return min(confianza, 1)
+
 def detectar_actividad(keypoints):
     """
     Devuelve la etiqueta de la actividad detectada:
@@ -90,112 +203,43 @@ def detectar_actividad(keypoints):
 
     # Si no hay al menos 17 keypoints, lo consideramos "Normal"
     if keypoints.shape[0] < 17:
-        return "Normal"
+        return "Normal", 0
 
-    # Filtrar keypoints por confianza
-    def filtrar_kp(kp):
-        return kp if kp is not None and kp[2] >= CONFIDENCE_THRESHOLD else None
-
-    # Diccionario para obtener y filtrar keypoints rápidamente
+    # Diccionario para obtener los keypoints necesarios
     indices = {
-        'nariz': 0, 'ojo_izq': 1, 'ojo_der': 2,
         'hombro_izq': 5, 'hombro_der': 6,
         'codo_izq': 7, 'codo_der': 8,
         'muneca_izq': 9, 'muneca_der': 10,
+        'nariz': 0, 'ojo_izq': 1, 'ojo_der': 2,
+        'oreja_izq': 3, 'oreja_der': 4,
+        'rodilla_izq': 13, 'rodilla_der': 14,
         'cadera_izq': 11, 'cadera_der': 12
     }
 
-    keypoints_validos = {}
-    for nombre, idx in indices.items():
-        kp_bruto = get_kp(keypoints, idx)
-        keypoints_validos[nombre] = filtrar_kp(kp_bruto)
+    keypoints_validos = obtener_keypoints_validos(keypoints, indices, CONFIDENCE_THRESHOLD)
 
-    # ----------------------------------------------
-    # Verificar que haya keypoints mínimos
-    # (nariz y hombros) para cualquier acción
-    # ----------------------------------------------
-    hombro_izq = keypoints_validos['hombro_izq']
-    hombro_der = keypoints_validos['hombro_der']
-    nariz      = keypoints_validos['nariz']
+    # Verificar que existan al menos los keypoints necesarios para "Pelear"
+    necesarios_pelear = ['hombro_izq', 'hombro_der', 'codo_izq', 'codo_der', 'muneca_izq', 'muneca_der']
+    if all(keypoints_validos[nombre] is not None for nombre in necesarios_pelear):
+        confianza_pelear = calcular_confianza_pelear(keypoints_validos)
+        if confianza_pelear >= 0.7:  # Umbral para considerar que está "Peleando"
+            return "Pelear", confianza_pelear
+    
+    # Verificar que existan al menos los keypoints necesarios para "Trepar"
+    necesarios_trepar = ['hombro_izq', 'hombro_der', 'muneca_izq', 'muneca_der']
+    if all(keypoints_validos[nombre] is not None for nombre in necesarios_trepar):
+        confianza_trepar = calcular_confianza_trepar(keypoints_validos)
+        if confianza_trepar >= 0.7:  # Umbral para considerar que está "Trepando"
+            return "Trepar", confianza_trepar
 
-    if not all(k is not None for k in [hombro_izq, hombro_der, nariz]):
-        return "Normal"
-
-    # ----------------------------------------------
-    # 3.1. Detectar "Pelear"
-    # ----------------------------------------------
-    codo_izq   = keypoints_validos['codo_izq']
-    codo_der   = keypoints_validos['codo_der']
-    muneca_izq = keypoints_validos['muneca_izq']
-    muneca_der = keypoints_validos['muneca_der']
-
-    if all(k is not None for k in [codo_izq, codo_der, muneca_izq, muneca_der]):
-        ang_codo_izq = calcular_angulo(hombro_izq, codo_izq, muneca_izq)
-        ang_codo_der = calcular_angulo(hombro_der, codo_der, muneca_der)
-
-        tolerancia_altura = 40
-        muneca_izq_cerca = abs(muneca_izq[1] - hombro_izq[1]) <= tolerancia_altura
-        muneca_der_cerca = abs(muneca_der[1] - hombro_der[1]) <= tolerancia_altura
-
-
-        if (muneca_izq_cerca and muneca_der_cerca
-            and ang_codo_izq < 90 and ang_codo_der < 90):
-            return "Pelear"
-
-    # ----------------------------------------------
-    # 3.2. Detectar "Acostado"
-    # ----------------------------------------------
-    cadera_izq = keypoints_validos['cadera_izq']
-    cadera_der = keypoints_validos['cadera_der']
-
-    if all(k is not None for k in [cadera_izq, cadera_der]):
-        x1, y1, x2, y2 = bounding_box_persona(keypoints)
-        width = x2 - x1
-        height = y2 - y1
-
-        bbox_ratio = width / (height + 1e-6)
-        avg_hombros_y = (hombro_izq[1] + hombro_der[1]) / 2.0
-        avg_caderas_y = (cadera_izq[1] + cadera_der[1]) / 2.0
-        diff_torso_y = abs(avg_hombros_y - avg_caderas_y)
-
-        if (bbox_ratio > 2.0 and diff_torso_y < 40):
-            return "Acostado"
-
-    # ----------------------------------------------
-    # 3.3. Detectar "Trepar"
-    # ----------------------------------------------
-    ojo_izq = keypoints_validos['ojo_izq']
-    ojo_der = keypoints_validos['ojo_der']
-
-    if all(k is not None for k in [codo_izq, codo_der, muneca_izq, muneca_der, ojo_izq, ojo_der]):
-        margen_alto_codo = 30
-        margen_alto_muneca = 20
-
-        codos_arriba = (
-            codo_izq[1] < (hombro_izq[1] - margen_alto_codo) and
-            codo_der[1] < (hombro_der[1] - margen_alto_codo)
-        )
-        munecas_arriba = (
-            muneca_izq[1] < (min(ojo_izq[1], ojo_der[1]) - margen_alto_muneca) and
-            muneca_der[1] < (min(ojo_izq[1], ojo_der[1]) - margen_alto_muneca)
-        )
-
-
-        if codos_arriba and munecas_arriba:
-            ang_codo_izq = calcular_angulo(hombro_izq, codo_izq, muneca_izq)
-            ang_codo_der = calcular_angulo(hombro_der, codo_der, muneca_der)
-            rango_min, rango_max = 30, 160
-            codo_i_ok = (rango_min < ang_codo_izq < rango_max)
-            codo_d_ok = (rango_min < ang_codo_der < rango_max)
-
-
-            if codo_i_ok and codo_d_ok:
-                return "Trepar"
-
-    # ----------------------------------------------
-    # 3.4. Si nada coincide, "Normal"
-    # ----------------------------------------------
-    return "Normal"
+    # Verificar que existan al menos los keypoints necesarios para "Acostado"
+    necesarios_acostado = ['hombro_izq', 'hombro_der', 'cadera_izq', 'cadera_der']
+    if all(keypoints_validos[nombre] is not None for nombre in necesarios_acostado):
+        confianza_acostado = calcular_confianza_acostado(keypoints_validos)
+        if confianza_acostado >= 0.7:  # Umbral para considerar que está "Acostado"
+            return "Acostado", confianza_acostado
+    
+    return "Normal", 0
 
 # ---------------------------------------------------
 # 4. Función principal de procesar cada frame
@@ -221,7 +265,7 @@ def procesar_frame(frame, prev_time, track_id_to_name):
                     person_keypoints = person_keypoints[0]
 
                 if person_keypoints.shape == (17, 3):
-                    actividad = detectar_actividad(person_keypoints)
+                    actividad, confianza = detectar_actividad(person_keypoints)
 
                     # Puntos [5,6,11,12] => hombros y caderas para ubicar texto
                     puntos_clave_indices = [5, 6, 11, 12]
@@ -232,7 +276,7 @@ def procesar_frame(frame, prev_time, track_id_to_name):
                     # Dibuja la actividad en la imagen
                     cv2.putText(
                         annotated_frame,
-                        actividad,
+                        actividad+ f" ({confianza:.2f})",
                         (centro_x, centro_y),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.8,
@@ -242,6 +286,6 @@ def procesar_frame(frame, prev_time, track_id_to_name):
 
                     # Cualquier actividad que no sea "Normal" se registra como evento
                     if actividad != "Normal":
-                        eventos.append({"etiqueta": actividad, "confianza": 1.0})
+                        eventos.append({"etiqueta": actividad, "confianza": confianza})
 
     return annotated_frame, eventos, prev_time

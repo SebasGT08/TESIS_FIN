@@ -77,7 +77,7 @@ def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, ti
         for evento in eventos:
             etiqueta = evento['etiqueta']
             confianza = evento['confianza']
-            print(f"[DEBUG] Procesando evento: {etiqueta}, confianza: {confianza}, tipo: {tipo}")
+            # print(f"[DEBUG] Procesando evento: {etiqueta}, confianza: {confianza}, tipo: {tipo}")
 
             # Si la detección está en el historial
             if etiqueta in detection_history:
@@ -89,15 +89,15 @@ def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, ti
 
                 # Verificar si ha pasado mucho tiempo desde la última ocurrencia
                 if now - last_detected > tiempo_maximo_sin_detectar:
-                    print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} por tiempo sin detectar.")
+                    # print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} por tiempo sin detectar.")
                     occurrences = 1
                 elif tipo == last_detected_type:
                     occurrences += 1
-                    print(f"[DEBUG] Incrementando ocurrencias para {etiqueta}: {occurrences}")
+                    # print(f"[DEBUG] Incrementando ocurrencias para {etiqueta}: {occurrences}")
                 else:
                     # Reinicia las ocurrencias si cambió el tipo de evento
                     occurrences = 1
-                    print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} debido a cambio de tipo.")
+                    # print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} debido a cambio de tipo.")
 
                 # Actualiza los valores en el historial
                 history['occurrences'] = occurrences
@@ -125,12 +125,12 @@ def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, ti
 
                     # Actualiza el tiempo de la última vez que se guardó
                     history['last_saved'] = now
-                    print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} después de guardar.")
+                    # print(f"[DEBUG] Reiniciando ocurrencias para {etiqueta} después de guardar.")
                     occurrences = 0  # Reinicia las ocurrencias después de guardar
-                else:
-                    print(f"[DEBUG] No cumple condiciones para guardar: {etiqueta}. "
-                          f"Tiempo desde último guardado: {now - last_saved}, "
-                          f"Ocurrencias: {occurrences}")
+                # else:
+                #     print(f"[DEBUG] No cumple condiciones para guardar: {etiqueta}. "
+                #           f"Tiempo desde último guardado: {now - last_saved}, "
+                #           f"Ocurrencias: {occurrences}")
 
                 # Escribe nuevamente en el diccionario compartido
                 history['occurrences'] = occurrences
@@ -144,11 +144,11 @@ def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, ti
                     "occurrences": 1,  # Número de ocurrencias consecutivas
                     "last_detected_type": tipo,  # Último tipo detectado
                 }
-                print(f"[DEBUG] Inicializando historial para {etiqueta}")
+                # print(f"[DEBUG] Inicializando historial para {etiqueta}")
 
         # Realiza commit solo una vez por lote de eventos
         db_connection.commit()
-        print("[DEBUG] Cambios confirmados en la base de datos.")
+        # print("[DEBUG] Cambios confirmados en la base de datos.")
     except Exception as e:
         print(f"[ERROR] No se pudo guardar el evento: {e}")
 
