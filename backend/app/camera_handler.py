@@ -5,6 +5,7 @@ from .pose_detection import procesar_frame as procesar_poses
 from .object_detection import procesar_objetos
 from .face_detection import procesar_rostros
 from .db_connection import get_db_connection
+import os
 
 # Variables para colas compartidas
 pose_queue = None
@@ -105,7 +106,7 @@ def guardar_eventos(eventos, tipo, tiempo_persistencia=5, min_ocurrencias=60, ti
                 history['last_detected_type'] = tipo
 
                 # Condiciones para guardar:
-                if now - last_saved > tiempo_persistencia and occurrences >= min_ocurrencias:
+                if (now - last_saved > tiempo_persistencia and occurrences >= min_ocurrencias):
                     print(f"[DEBUG] Cumple condiciones para guardar: {etiqueta}")
                     query = """
                         INSERT INTO detecciones (tipo, etiqueta, confianza, fecha)
@@ -160,13 +161,15 @@ def capturar_frames():
     """
     print("[INFO] Iniciando captura de frames...")
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    # base_dir = os.path.dirname(__file__)  # Directorio del archivo actual
+    # model_path = os.path.abspath(os.path.join(base_dir, "../videos/caminando.mp4"))
+    # cap = cv2.VideoCapture(model_path)
     if not cap.isOpened():
         print("[ERROR] No se pudo abrir la cámara.")
         return
 
     # Inicializar conexión a la base de datos
     init_db_connection()
-
     try:
         while True:
             ret, frame = cap.read()

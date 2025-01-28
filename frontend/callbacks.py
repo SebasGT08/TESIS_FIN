@@ -624,12 +624,15 @@ def update_alerts(message, stored_alerts):
     alert = dbc.Alert(
         [
             html.H5("⚠ Alerta", className="alert-heading"),
-            html.P(f"Motivo: {data['etiqueta']}", style={"fontWeight": "bold"}),
+            html.P(
+                f"Motivo: {'Cuchillo detectado' if data['etiqueta'] == 'knife' else 'Pistola detectada' if data['etiqueta'] == 'pistol' else data['etiqueta']}",
+                style={"fontWeight": "bold"}
+            ),
             html.P(f"{formatted_date}"),
         ],
         color="danger" if data["tipo"] == "objetos" else "warning",
         dismissable=True,
-        duration=5000,
+        duration=15000,
         style={
             "marginBottom": "10px",
             "borderLeft": "5px solid red" if data["tipo"] == "objetos" else "orange",

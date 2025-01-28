@@ -11,7 +11,7 @@ app_insightface = FaceAnalysis(providers=["CUDAExecutionProvider", "CPUExecution
 app_insightface.prepare(ctx_id=0, det_size=(640, 640))  # ctx_id=0 para usar GPU
 
 # Inicialización del tracker (DeepSORT)
-tracker = DeepSort(max_age=30, nn_budget=10, embedder_gpu=True)
+tracker = DeepSort(max_age=5, nn_budget=100, embedder_gpu=True)
 
 # Variables globales para encodings
 _encodings_loaded = False
@@ -78,7 +78,7 @@ def procesar_rostros(frame, prev_time, track_id_to_name):
             distances = np.linalg.norm(known_encodings - encoding, axis=1)
             min_distance_index = np.argmin(distances)
 
-            if distances[min_distance_index] < 0.9:  # Umbral de similitud
+            if distances[min_distance_index] < 1.1:  # Umbral de similitud
                 name = known_names[min_distance_index]
 
         # Validación de formato
@@ -123,7 +123,7 @@ def procesar_rostros(frame, prev_time, track_id_to_name):
         cv2.putText(frame, f"{label} (ID: {track_id})", (int(bbox[0]), int(bbox[1] - 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
         
-    # Calcular y mostrar FPS
+    #Calcular y mostrar FPS
     current_time = time.time()
     fps = 1 / (current_time - prev_time)
     prev_time = current_time

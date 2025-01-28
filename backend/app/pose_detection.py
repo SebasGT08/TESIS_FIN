@@ -248,15 +248,25 @@ def procesar_frame(frame, prev_time, track_id_to_name):
     """
     1. Aplica el modelo YOLO para detectar keypoints de cada persona en el frame.
     2. Determina la actividad y dibuja la etiqueta correspondiente en la imagen.
-    3. Retorna la imagen anotada y una lista de eventos (todos menos "Normal").
+    3. Dibuja keypoints y líneas conectándolos para cada persona detectada.
+    4. Retorna la imagen anotada y una lista de eventos (todos menos "Normal").
     """
+    # Realizar la predicción con el modelo YOLO
     results = model.predict(frame, device=device, verbose=False)
-    annotated_frame = results[0].plot()  # Anota el primer resultado
 
+    # Crear una copia del frame para anotarlo
+    annotated_frame = frame.copy()
+
+    # Lista para almacenar los eventos detectados
     eventos = []
+
+    # Colores para keypoints y líneas
+    keypoint_color = (0, 255, 0)  # Verde
+    line_color = (255, 0, 0)  # Azul
 
     for result in results:
         if result.keypoints is not None:
+            # Obtener los keypoints detectados y convertirlos a numpy
             keypoints_all = result.keypoints.data.cpu().numpy()
 
             for person_keypoints in keypoints_all:
@@ -265,18 +275,38 @@ def procesar_frame(frame, prev_time, track_id_to_name):
                     person_keypoints = person_keypoints[0]
 
                 if person_keypoints.shape == (17, 3):
+                    # Dibuja los keypoints como círculos en la imagen
+                    for kp in person_keypoints:
+                        x, y, conf = kp
+                        if conf > 0.5:  # Solo dibujar keypoints confiables
+                            cv2.circle(annotated_frame, (int(x), int(y)), 5, keypoint_color, -1)
+
+                    # Conexiones entre keypoints para formar un esqueleto
+                    skeleton_connections = [
+                        (5, 6), (5, 11), (6, 12), (11, 12),  # Hombros y caderas
+                        (5, 7), (7, 9), (6, 8), (8, 10),      # Brazos
+                        (11, 13), (13, 15), (12, 14), (14, 16) # Piernas
+                    ]
+
+                    for start, end in skeleton_connections:
+                        if person_keypoints[start][2] > 0.5 and person_keypoints[end][2] > 0.5:
+                            x1, y1 = person_keypoints[start][:2]
+                            x2, y2 = person_keypoints[end][:2]
+                            cv2.line(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), line_color, 2)
+
+                    # Determinar la actividad basada en los keypoints
                     actividad, confianza = detectar_actividad(person_keypoints)
 
-                    # Puntos [5,6,11,12] => hombros y caderas para ubicar texto
+                    # Calcular el centro de los hombros y caderas para posicionar el texto
                     puntos_clave_indices = [5, 6, 11, 12]
                     subset_points = person_keypoints[puntos_clave_indices, :2]
                     centro_x = int(np.mean(subset_points[:, 0]))
                     centro_y = int(np.mean(subset_points[:, 1]))
 
-                    # Dibuja la actividad en la imagen
+                    # Dibujar la actividad detectada en la imagen
                     cv2.putText(
                         annotated_frame,
-                        actividad+ f" ({confianza:.2f})",
+                        actividad + f" ({confianza:.2f})",
                         (centro_x, centro_y),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.8,
@@ -284,8 +314,9 @@ def procesar_frame(frame, prev_time, track_id_to_name):
                         2
                     )
 
-                    # Cualquier actividad que no sea "Normal" se registra como evento
+                    # Registrar el evento si la actividad no es "Normal"
                     if actividad != "Normal":
                         eventos.append({"etiqueta": actividad, "confianza": confianza})
 
     return annotated_frame, eventos, prev_time
+
