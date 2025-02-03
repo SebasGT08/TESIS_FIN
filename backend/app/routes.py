@@ -2,7 +2,7 @@ import os
 import io
 import base64
 import numpy as np
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app
 from PIL import Image
 from insightface.app import FaceAnalysis
 from datetime import datetime
@@ -62,6 +62,13 @@ def register_routes(app):
                     connection.close()
             else:
                 return jsonify({"error": "No se pudo conectar a la base de datos."}), 500
+            
+            # Obtener el flag desde la configuración de la app
+            flag = current_app.config.get('reload_encodings_flag')
+            if flag is not None:
+                flag.value = True
+                print("[DEBUG] Flag compartido activado.")
+
             return jsonify({"message": "Registro exitoso."}), 200
 
         except Exception as e:
@@ -267,6 +274,12 @@ def register_routes(app):
             cursor.close()
             conn.close()
 
+            # Obtener el flag desde la configuración de la app
+            flag = current_app.config.get('reload_encodings_flag')
+            if flag is not None:
+                flag.value = True
+                print("[DEBUG] Flag compartido activado.")
+
             return jsonify({"message": f"Estado actualizado a {nuevo_estado}"}), 200
 
         except Exception as e:
@@ -347,6 +360,12 @@ def register_routes(app):
             cursor.close()
             conn.close()
 
+            # Obtener el flag desde la configuración de la app
+            flag = current_app.config.get('reload_encodings_flag')
+            if flag is not None:
+                flag.value = True
+                print("[DEBUG] Flag compartido activado.")
+
             print(f"Persona con ID {persona_id} eliminada exitosamente.")
             return jsonify({"message": "Persona eliminada exitosamente"}), 200
         except Exception as e:
@@ -385,6 +404,13 @@ def register_routes(app):
             print("Persona actualizada correctamente.")  # Depuración
             cursor.close()
             conn.close()
+
+            # Obtener el flag desde la configuración de la app
+            flag = current_app.config.get('reload_encodings_flag')
+            if flag is not None:
+                flag.value = True
+                print("[DEBUG] Flag compartido activado.")
+                
             return jsonify({"message": "Persona actualizada con éxito"}), 200
 
         except Exception as e:

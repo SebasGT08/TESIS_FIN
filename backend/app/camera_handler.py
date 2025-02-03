@@ -17,22 +17,26 @@ event_queue = None
 detection_history = None
 track_id_to_name = None
 
+# Flag compartido para recargar encodings
+reload_flag = None
+
 # Conexión persistente a la base de datos
 db_connection = None
 db_cursor = None
 
 
-def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue, p_detection_history,p_track_id_to_name):
+def set_queues(p_pose_queue, p_object_queue, p_face_queue, p_event_queue, p_detection_history,p_track_id_to_name, p_reload_flag):
     """
     Configura las colas compartidas y el historial de detecciones.
     """
-    global pose_queue, object_queue, face_queue, event_queue, detection_history, track_id_to_name
+    global pose_queue, object_queue, face_queue, event_queue, detection_history, track_id_to_name, reload_flag
     pose_queue = p_pose_queue
     object_queue = p_object_queue
     face_queue = p_face_queue
     event_queue = p_event_queue
     detection_history = p_detection_history
     track_id_to_name = p_track_id_to_name
+    reload_flag = p_reload_flag
 
 
 
@@ -177,6 +181,13 @@ def capturar_frames():
                 print("[WARNING] No se pudo leer el frame.")
                 time.sleep(0.1)
                 continue
+
+            # Verificar si se debe recargar los encodings (por ejemplo, tras un nuevo registro)
+            if reload_flag is not None and reload_flag.value:
+                from .face_detection import initialize_encodings
+                initialize_encodings()
+                reload_flag.value = False
+                print("[INFO] Encodings recargados por actualización del flag.")
 
             prev_time = time.time()  # Inicializar tiempo para calcular FPS
 

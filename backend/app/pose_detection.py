@@ -90,7 +90,7 @@ def calcular_confianza_pelear(keypoints_validos, tolerancia_altura=60):
     if muneca_sobre_codo_der:
         confianza += 0.2
     
-    print('Pelear:', confianza)
+    # print('Pelear:', confianza)
     
     return confianza
 
@@ -139,7 +139,7 @@ def calcular_confianza_trepar(keypoints_validos, distancia_min_piernas=20):
     # Calcular confianza final
     confianza = puntaje_muneca_izq + puntaje_muneca_der + pierna_levantada
 
-    print('Trepar:', confianza)
+    # print('Trepar:', confianza)
     return min(confianza, 1)  # Limitar la confianza máxima a 1
 
 def calcular_confianza_acostado(keypoints_validos):
@@ -176,7 +176,7 @@ def calcular_confianza_acostado(keypoints_validos):
     if diff_torso_y < 20:  # Alineación horizontal
         confianza += 0.3
 
-    print('Acostado:', confianza)
+    # print('Acostado:', confianza)
     return min(confianza, 1)
 
 def detectar_actividad(keypoints):

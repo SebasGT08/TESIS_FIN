@@ -23,28 +23,31 @@ def initialize_encodings():
     Carga los encodings registrados desde la base de datos.
     """
     global _encodings_loaded, known_encodings, known_names
-    if not _encodings_loaded:
-        connection = get_db_connection()
-        if connection:
-            try:
-                cursor = connection.cursor()
-                cursor.execute("SELECT persona, encoding FROM personas WHERE estado = 'A'")
-                for row in cursor.fetchall():
-                    name, encoding_serialized = row
-                    encoding = np.frombuffer(base64.b64decode(encoding_serialized), dtype=np.float32)
-                    encoding = encoding / np.linalg.norm(encoding)  # Normalizar el encoding
-                    known_encodings.append(encoding)
-                    known_names.append(name)
-                print(f"[DEBUG] Total encodings cargados: {len(known_encodings)}")
-            except Exception as e:
-                print(f"[ERROR] Error al cargar encodings desde la base de datos: {e}")
-            finally:
-                cursor.close()
-                connection.close()
-        else:
-            print("[ERROR] No se pudo establecer la conexión con la base de datos.")
-        _encodings_loaded = True
-        print(f"[INFO] Encodings cargados: {known_names}")
+
+    known_encodings = []
+    known_names = []
+    # if not _encodings_loaded:
+    connection = get_db_connection()
+    if connection:
+        try:
+            cursor = connection.cursor()
+            cursor.execute("SELECT persona, encoding FROM personas WHERE estado = 'A'")
+            for row in cursor.fetchall():
+                name, encoding_serialized = row
+                encoding = np.frombuffer(base64.b64decode(encoding_serialized), dtype=np.float32)
+                encoding = encoding / np.linalg.norm(encoding)  # Normalizar el encoding
+                known_encodings.append(encoding)
+                known_names.append(name)
+            print(f"[DEBUG] Total encodings cargados: {len(known_encodings)}")
+        except Exception as e:
+            print(f"[ERROR] Error al cargar encodings desde la base de datos: {e}")
+        finally:
+            cursor.close()
+            connection.close()
+    else:
+        print("[ERROR] No se pudo establecer la conexión con la base de datos.")
+    _encodings_loaded = True
+    print(f"[INFO] Encodings cargados: {known_names}")
 
 # Cargar los encodings al importar el módulo
 initialize_encodings()
